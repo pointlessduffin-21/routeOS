@@ -1,0 +1,24 @@
+{
+  "name": "simulator",
+  "private": true,
+  "scripts": {
+    "start": "node --import tsx/esm simulate.ts",
+    "start:bun": "bun simulate.ts",
+    "start:once": "node --import tsx/esm simulate.ts --once",
+    "start:once:bun": "bun simulate.ts --once",
+    "portal": "npx tsx portal-sim.ts",
+    "portal:ir": "npx tsx portal-sim.ts --ir --device ECO-BIN-002",
+    "dock": "bun dock-sim.ts --port 8091",
+    "dock:fast": "bun dock-sim.ts --port 8091 --interval 1",
+    "lid": "bun lid-sim.ts --port 8093",
+    "lid:fast": "bun lid-sim.ts --port 8093 --interval 1"
+  },
+  "dependencies": {
+    "mqtt": "^5.10.1"
+  },
+  "devDependencies": {
+    "@types/node": "^25.4.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.8.2"
+  }
+}

@@ -1,0 +1,18 @@
+services:
+  dock-sim:
+    build: .
+    command: ["bun", "dock-sim.ts", "--port", "8091", "--interval", "1", "--device", "ECO-DOCK-SIM-001"]
+    ports:
+      - "8091:8091"
+    environment:
+      MQTT_BROKER_URL: ${MQTT_BROKER_URL:-mqtt://109.123.238.215:1883}
+    restart: unless-stopped
+
+  lid-sim:
+    build: .
+    command: ["bun", "lid-sim.ts", "--port", "8093", "--interval", "1", "--device", "ECO-LID-SIM-001"]
+    ports:
+      - "8093:8093"
+    environment:
+      MQTT_BROKER_URL: ${MQTT_BROKER_URL:-mqtt://109.123.238.215:1883}
+    restart: unless-stopped

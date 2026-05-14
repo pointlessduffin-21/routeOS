@@ -1,0 +1,10 @@
+{
+  "_comment": "MQTT topic: ecoroute/trash_can/<device_code>  e.g. ecoroute/trash_can/ECO-BIN-001",
+  "device_code": "ECO-BIN-001",
+  "fill_level_percent": 72.5,
+  "distance_cm": 27.5,
+  "battery_voltage": 3.85,
+  "signal_strength": -62,
+  "anomaly_flag": false,
+  "firmware_version": "1.0.0"
+}
