@@ -1,0 +1,44 @@
+{
+  "id": "hcsr04",
+  "name": "HC-SR04 Ultrasonic Distance",
+  "category": "Distance",
+  "description": "Ultrasonic ranging module measuring 2 cm to 400 cm with ±3 mm accuracy. Widely used for bin fill-level, proximity detection, and obstacle avoidance.",
+  "manufacturer": "Generic / Various",
+  "interface": "GPIO (Trigger + Echo)",
+  "icon": "sensor",
+  "tags": ["ultrasonic", "distance", "fill-level", "proximity", "gpio"],
+  "signals": [
+    {
+      "name": "distance_cm",
+      "unit": "cm",
+      "type": "float",
+      "min": 2,
+      "max": 400,
+      "description": "Measured distance to target",
+      "alarmHigh": 380,
+      "alarmLow": 3
+    },
+    {
+      "name": "fill_percent",
+      "unit": "%",
+      "type": "float",
+      "min": 0,
+      "max": 100,
+      "description": "Container fill level (0 = empty, 100 = full)",
+      "alarmHigh": 90
+    }
+  ],
+  "mqttTopicPattern": "plant/{zone}/{machine}/distance_cm",
+  "gpioMap": {
+    "TRIG": "GPIO_NUM_5",
+    "ECHO": "GPIO_NUM_18"
+  },
+  "configSchema": {
+    "trigPin": { "type": "integer", "default": 5 },
+    "echoPin": { "type": "integer", "default": 18 },
+    "containerHeightCm": { "type": "number", "default": 60 }
+  },
+  "firmwareHint": "Use HCSR04 library or measure pulse width on ECHO pin. Divide (containerHeight - distance) / containerHeight * 100 for fill%.",
+  "routerosHint": null,
+  "datasheet": "https://cdn.sparkfun.com/datasheets/Sensors/Proximity/HCSR04.pdf"
+}

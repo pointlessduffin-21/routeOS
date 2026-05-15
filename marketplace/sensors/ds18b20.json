@@ -1,0 +1,34 @@
+{
+  "id": "ds18b20",
+  "name": "DS18B20 1-Wire Temperature",
+  "category": "Temperature",
+  "description": "Dallas Semiconductor 1-Wire digital thermometer. ±0.5°C accuracy (-10–+85°C range). Multiple sensors can share a single data wire using unique 64-bit ROM addresses.",
+  "manufacturer": "Maxim Integrated (now Analog Devices)",
+  "interface": "Dallas 1-Wire",
+  "icon": "thermostat",
+  "tags": ["temperature", "1-wire", "dallas", "waterproof", "pipeline", "multi-drop"],
+  "signals": [
+    {
+      "name": "temperature_c",
+      "unit": "°C",
+      "type": "float",
+      "min": -55,
+      "max": 125,
+      "description": "Measured temperature",
+      "alarmHigh": 80,
+      "alarmLow": -20
+    }
+  ],
+  "mqttTopicPattern": "plant/{zone}/{machine}/temperature_c",
+  "gpioMap": {
+    "DATA": "GPIO_NUM_4"
+  },
+  "configSchema": {
+    "dataPin": { "type": "integer", "default": 4 },
+    "resolution": { "type": "integer", "default": 12, "enum": [9, 10, 11, 12] },
+    "sensorIndex": { "type": "integer", "default": 0, "description": "Index on multi-drop bus" }
+  },
+  "firmwareHint": "Use OneWire + DallasTemperature libraries. 4.7 kΩ pull-up resistor required on DATA line. Resolution 12-bit takes ~750 ms conversion time.",
+  "routerosHint": null,
+  "datasheet": "https://www.analog.com/media/en/technical-documentation/data-sheets/DS18B20.pdf"
+}

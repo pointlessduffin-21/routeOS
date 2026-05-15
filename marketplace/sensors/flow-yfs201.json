@@ -1,0 +1,40 @@
+{
+  "id": "flow-yfs201",
+  "name": "YF-S201 Water Flow Sensor",
+  "category": "Flow",
+  "description": "Hall-effect water flow sensor measuring 1–30 L/min. Pulse output proportional to flow rate. Suitable for irrigation, water metering, and pipe monitoring.",
+  "manufacturer": "Generic / Various",
+  "interface": "GPIO (Pulse Counter)",
+  "icon": "water",
+  "tags": ["flow", "water", "pulse", "irrigation", "metering", "gpio"],
+  "signals": [
+    {
+      "name": "flow_rate_lpm",
+      "unit": "L/min",
+      "type": "float",
+      "min": 0,
+      "max": 30,
+      "description": "Instantaneous volumetric flow rate",
+      "alarmHigh": 25,
+      "alarmLow": 0.1
+    },
+    {
+      "name": "total_volume_l",
+      "unit": "L",
+      "type": "float",
+      "min": 0,
+      "description": "Cumulative volume since last reset"
+    }
+  ],
+  "mqttTopicPattern": "plant/{zone}/{machine}/flow_rate_lpm",
+  "gpioMap": {
+    "SIGNAL": "GPIO_NUM_14"
+  },
+  "configSchema": {
+    "signalPin": { "type": "integer", "default": 14 },
+    "pulsesPerLiter": { "type": "number", "default": 450, "description": "Calibration constant (datasheet: ~450 pulses/L)" }
+  },
+  "firmwareHint": "Attach rising-edge interrupt on signal pin. Count pulses per second → flowRate = pulseCount / pulsesPerLiter * 60. Use LEDC or PCNT peripheral for accuracy.",
+  "routerosHint": null,
+  "datasheet": null
+}

@@ -1,0 +1,40 @@
+{
+  "id": "hx711",
+  "name": "HX711 Load Cell Amplifier",
+  "category": "Weight",
+  "description": "24-bit ADC and amplifier for Wheatstone bridge load cells. Supports 10 SPS / 80 SPS data rate. Used for bin weight, industrial scales, and force measurement.",
+  "manufacturer": "Avia Semiconductor",
+  "interface": "GPIO (CLK + DOUT)",
+  "icon": "scale",
+  "tags": ["weight", "load-cell", "scale", "force", "24-bit", "adc"],
+  "signals": [
+    {
+      "name": "weight_kg",
+      "unit": "kg",
+      "type": "float",
+      "min": 0,
+      "description": "Measured weight after tare and calibration",
+      "alarmHigh": 95
+    },
+    {
+      "name": "raw_adc",
+      "unit": "counts",
+      "type": "integer",
+      "description": "Raw 24-bit ADC reading"
+    }
+  ],
+  "mqttTopicPattern": "plant/{zone}/{machine}/weight_kg",
+  "gpioMap": {
+    "DOUT": "GPIO_NUM_25",
+    "SCK": "GPIO_NUM_26"
+  },
+  "configSchema": {
+    "doutPin": { "type": "integer", "default": 25 },
+    "sckPin": { "type": "integer", "default": 26 },
+    "calibrationFactor": { "type": "number", "default": 2280.0 },
+    "gain": { "type": "integer", "default": 128, "enum": [32, 64, 128] }
+  },
+  "firmwareHint": "Use HX711 library by bogde. Call tare() on boot with no load. Calibrate with known weight: calibrationFactor = raw / knownWeightKg.",
+  "routerosHint": null,
+  "datasheet": "https://www.digikey.com/htmldatasheets/production/1836471/0/0/1/hx711.pdf"
+}

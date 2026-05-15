@@ -1,0 +1,54 @@
+{
+  "id": "ina219",
+  "name": "INA219 I2C Power Monitor",
+  "category": "Power",
+  "description": "Texas Instruments I2C current/voltage/power monitor with 12-bit ADC. Measures bus voltage (up to 26 V) and shunt voltage (±320 mV). Calculates power with sub-mA precision.",
+  "manufacturer": "Texas Instruments",
+  "interface": "I2C (0x40–0x4F)",
+  "icon": "bolt",
+  "tags": ["power", "current", "voltage", "i2c", "energy-monitoring", "battery"],
+  "signals": [
+    {
+      "name": "bus_voltage_v",
+      "unit": "V",
+      "type": "float",
+      "min": 0,
+      "max": 26,
+      "description": "DC bus voltage"
+    },
+    {
+      "name": "current_ma",
+      "unit": "mA",
+      "type": "float",
+      "description": "Current through shunt resistor",
+      "alarmHigh": 2000
+    },
+    {
+      "name": "power_mw",
+      "unit": "mW",
+      "type": "float",
+      "description": "Calculated power consumption"
+    },
+    {
+      "name": "shunt_voltage_mv",
+      "unit": "mV",
+      "type": "float",
+      "min": -320,
+      "max": 320,
+      "description": "Shunt resistor voltage drop"
+    }
+  ],
+  "mqttTopicPattern": "plant/{zone}/{machine}/power_mw",
+  "gpioMap": {
+    "SDA": "GPIO_NUM_21",
+    "SCL": "GPIO_NUM_22"
+  },
+  "configSchema": {
+    "i2cAddress": { "type": "string", "default": "0x40" },
+    "shuntOhm": { "type": "number", "default": 0.1 },
+    "maxCurrentA": { "type": "number", "default": 3.2 }
+  },
+  "firmwareHint": "Use Adafruit_INA219 library. Configure max current and shunt resistance for calibration register. Supports continuous or triggered mode.",
+  "routerosHint": null,
+  "datasheet": "https://www.ti.com/lit/ds/symlink/ina219.pdf"
+}

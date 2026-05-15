@@ -1,0 +1,34 @@
+{
+  "id": "mpu6050",
+  "name": "MPU-6050 6-Axis IMU",
+  "category": "Motion",
+  "description": "InvenSense 6-DOF IMU with 3-axis gyroscope (±250–2000°/s) and 3-axis accelerometer (±2–16g). I2C interface. Used for tilt, vibration monitoring, and fall detection.",
+  "manufacturer": "InvenSense (TDK)",
+  "interface": "I2C (0x68 / 0x69)",
+  "icon": "vibration",
+  "tags": ["imu", "accelerometer", "gyroscope", "vibration", "tilt", "motion", "i2c"],
+  "signals": [
+    { "name": "accel_x_g", "unit": "g", "type": "float", "description": "X-axis acceleration" },
+    { "name": "accel_y_g", "unit": "g", "type": "float", "description": "Y-axis acceleration" },
+    { "name": "accel_z_g", "unit": "g", "type": "float", "description": "Z-axis acceleration" },
+    { "name": "gyro_x_dps", "unit": "°/s", "type": "float", "description": "X-axis angular rate" },
+    { "name": "gyro_y_dps", "unit": "°/s", "type": "float", "description": "Y-axis angular rate" },
+    { "name": "gyro_z_dps", "unit": "°/s", "type": "float", "description": "Z-axis angular rate" },
+    { "name": "temperature_c", "unit": "°C", "type": "float", "description": "Die temperature" },
+    { "name": "vibration_rms", "unit": "g", "type": "float", "description": "RMS vibration magnitude", "alarmHigh": 2.0 }
+  ],
+  "mqttTopicPattern": "plant/{zone}/{machine}/vibration_rms",
+  "gpioMap": {
+    "SDA": "GPIO_NUM_21",
+    "SCL": "GPIO_NUM_22",
+    "INT": "GPIO_NUM_16"
+  },
+  "configSchema": {
+    "i2cAddress": { "type": "string", "default": "0x68" },
+    "accelRange": { "type": "string", "default": "2g", "enum": ["2g","4g","8g","16g"] },
+    "gyroRange": { "type": "string", "default": "250dps", "enum": ["250dps","500dps","1000dps","2000dps"] }
+  },
+  "firmwareHint": "Use MPU6050 library by Electronic Cats or Adafruit. Use DMP (digital motion processor) for Euler angles and quaternions.",
+  "routerosHint": null,
+  "datasheet": "https://invensense.tdk.com/wp-content/uploads/2015/02/MPU-6000-Datasheet1.pdf"
+}

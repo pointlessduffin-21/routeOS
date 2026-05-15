@@ -1,0 +1,65 @@
+{
+  "id": "bme680",
+  "name": "BME680 Air Quality + Environment",
+  "category": "Air Quality",
+  "description": "Bosch 4-in-1 sensor: temperature, humidity, pressure, and MOX gas sensor for IAQ (Indoor Air Quality) index. Suitable for VOC and CO₂-equivalent monitoring.",
+  "manufacturer": "Bosch Sensortec",
+  "interface": "I2C (0x76 / 0x77) or SPI",
+  "icon": "air",
+  "tags": ["air-quality", "iaq", "voc", "co2-equivalent", "temperature", "humidity", "pressure", "bosch"],
+  "signals": [
+    {
+      "name": "temperature_c",
+      "unit": "°C",
+      "type": "float",
+      "min": -40,
+      "max": 85,
+      "description": "Ambient temperature"
+    },
+    {
+      "name": "humidity_pct",
+      "unit": "%RH",
+      "type": "float",
+      "min": 0,
+      "max": 100,
+      "description": "Relative humidity"
+    },
+    {
+      "name": "pressure_hpa",
+      "unit": "hPa",
+      "type": "float",
+      "min": 300,
+      "max": 1100,
+      "description": "Barometric pressure"
+    },
+    {
+      "name": "gas_resistance_ohm",
+      "unit": "Ω",
+      "type": "float",
+      "min": 0,
+      "description": "Raw MOX gas sensor resistance — higher = cleaner air"
+    },
+    {
+      "name": "iaq_score",
+      "unit": "",
+      "type": "float",
+      "min": 0,
+      "max": 500,
+      "description": "IAQ index (0=excellent, 500=extremely polluted)",
+      "alarmHigh": 150
+    }
+  ],
+  "mqttTopicPattern": "plant/{zone}/{machine}/iaq_score",
+  "gpioMap": {
+    "SDA": "GPIO_NUM_21",
+    "SCL": "GPIO_NUM_22"
+  },
+  "configSchema": {
+    "i2cAddress": { "type": "string", "default": "0x76" },
+    "gasHeaterTempC": { "type": "integer", "default": 320 },
+    "gasHeaterDurationMs": { "type": "integer", "default": 150 }
+  },
+  "firmwareHint": "Use Bosch BSEC library for full IAQ computation (license required). Simple mode via Adafruit_BME680 for raw gas resistance only.",
+  "routerosHint": null,
+  "datasheet": "https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme680-ds001.pdf"
+}

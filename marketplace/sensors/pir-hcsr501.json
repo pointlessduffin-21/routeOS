@@ -1,0 +1,36 @@
+{
+  "id": "pir-hcsr501",
+  "name": "PIR Motion Detector HC-SR501",
+  "category": "Motion",
+  "description": "Passive Infrared motion sensor with adjustable sensitivity (3–7 m) and time delay (5 s–5 min). Digital HIGH output on motion detection. Used for occupancy, security, and event-triggered logging.",
+  "manufacturer": "Generic / Various",
+  "interface": "GPIO (Digital Output)",
+  "icon": "motion_photos_on",
+  "tags": ["motion", "pir", "occupancy", "security", "digital", "gpio"],
+  "signals": [
+    {
+      "name": "motion_detected",
+      "unit": "",
+      "type": "boolean",
+      "description": "true when motion is detected"
+    },
+    {
+      "name": "motion_count",
+      "unit": "events",
+      "type": "integer",
+      "min": 0,
+      "description": "Cumulative motion event count since last reset"
+    }
+  ],
+  "mqttTopicPattern": "plant/{zone}/{machine}/motion_detected",
+  "gpioMap": {
+    "OUT": "GPIO_NUM_13"
+  },
+  "configSchema": {
+    "outPin": { "type": "integer", "default": 13 },
+    "activeHigh": { "type": "boolean", "default": true }
+  },
+  "firmwareHint": "Attach interrupt on RISING and FALLING edges for real-time detection. Allow 30–60 s warmup time after power-on.",
+  "routerosHint": null,
+  "datasheet": "https://www.mpja.com/download/31227sc.pdf"
+}

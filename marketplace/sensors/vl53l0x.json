@@ -1,0 +1,43 @@
+{
+  "id": "vl53l0x",
+  "name": "VL53L0X Time-of-Flight Distance",
+  "category": "Distance",
+  "description": "ST Microelectronics ToF laser ranging sensor with up to 2 m range and ±3% accuracy. More precise than ultrasonic, immune to target reflectivity variation.",
+  "manufacturer": "STMicroelectronics",
+  "interface": "I2C (default addr 0x29)",
+  "icon": "sensor",
+  "tags": ["tof", "laser", "distance", "i2c", "fill-level", "precision"],
+  "signals": [
+    {
+      "name": "distance_mm",
+      "unit": "mm",
+      "type": "integer",
+      "min": 30,
+      "max": 2000,
+      "description": "Measured range to target in millimetres"
+    },
+    {
+      "name": "fill_percent",
+      "unit": "%",
+      "type": "float",
+      "min": 0,
+      "max": 100,
+      "description": "Container fill level derived from range",
+      "alarmHigh": 90
+    }
+  ],
+  "mqttTopicPattern": "plant/{zone}/{machine}/distance_mm",
+  "gpioMap": {
+    "SDA": "GPIO_NUM_21",
+    "SCL": "GPIO_NUM_22",
+    "XSHUT": "GPIO_NUM_19"
+  },
+  "configSchema": {
+    "i2cAddress": { "type": "string", "default": "0x29" },
+    "containerHeightMm": { "type": "integer", "default": 600 },
+    "timingBudgetUs": { "type": "integer", "default": 200000 }
+  },
+  "firmwareHint": "Use Adafruit_VL53L0X library. setMeasurementTimingBudget() for accuracy vs speed tradeoff.",
+  "routerosHint": null,
+  "datasheet": "https://www.st.com/resource/en/datasheet/vl53l0x.pdf"
+}

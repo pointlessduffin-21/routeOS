@@ -1,0 +1,51 @@
+# Build artifacts
+.pio/
+build/
+dist/
+*.o
+*.elf
+*.bin
+*.hex
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+desktop/__pycache__/
+
+# Node / Bun
+node_modules/
+backend/node_modules/
+tools/node_modules/
+marketplace/node_modules/
+simulator/node_modules/
+bun.lockb
+
+# Android build
+android/.gradle/
+android/app/build/
+android/build/
+android/local.properties
+*.apk
+*.aab
+*.keystore
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Docker volumes (local)
+mosquitto-data/
+mosquitto-logs/
+
+# Secrets / env
+.env
+.env.local
+*.env

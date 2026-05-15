@@ -1,0 +1,41 @@
+{
+  "id": "mhz19-co2",
+  "name": "MH-Z19 NDIR CO₂ Sensor",
+  "category": "Air Quality",
+  "description": "Non-dispersive infrared CO₂ sensor measuring 400–5000 ppm with ±50 ppm accuracy. UART or PWM interface. Built-in temperature compensation and auto-calibration. Ideal for indoor air quality and ventilation control.",
+  "manufacturer": "Winsen Electronics",
+  "interface": "UART (9600 baud) or PWM",
+  "icon": "air",
+  "tags": ["co2", "carbon-dioxide", "ndir", "uart", "air-quality", "hvac"],
+  "signals": [
+    {
+      "name": "co2_ppm",
+      "unit": "ppm",
+      "type": "integer",
+      "min": 400,
+      "max": 5000,
+      "description": "CO₂ concentration",
+      "alarmHigh": 1000,
+      "alarmLow": 400
+    },
+    {
+      "name": "temperature_c",
+      "unit": "°C",
+      "type": "integer",
+      "description": "Sensor internal temperature"
+    }
+  ],
+  "mqttTopicPattern": "plant/{zone}/{machine}/co2_ppm",
+  "gpioMap": {
+    "TX": "GPIO_NUM_17",
+    "RX": "GPIO_NUM_16"
+  },
+  "configSchema": {
+    "uartTx": { "type": "integer", "default": 17 },
+    "uartRx": { "type": "integer", "default": 16 },
+    "autoCalibrate": { "type": "boolean", "default": false, "description": "ABC auto-calibration assumes 400 ppm baseline every 24 hours" }
+  },
+  "firmwareHint": "Use MHZ19 library by Tobias Schürg. Disable ABC auto-calibration in enclosed spaces. Allow 3-minute warmup before first reading.",
+  "routerosHint": null,
+  "datasheet": "https://www.winsen-sensor.com/d/files/infrared-gas-sensor/mh-z19b-co2-ver1_0.pdf"
+}

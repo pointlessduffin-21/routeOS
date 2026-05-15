@@ -1,0 +1,29 @@
+{
+  "id": "ads1115",
+  "name": "ADS1115 16-bit I2C ADC",
+  "category": "Interface",
+  "description": "Texas Instruments 16-bit 4-channel ADC with programmable gain amplifier (±0.256V to ±6.144V). I2C interface. Expands ESP32 ADC capabilities with higher resolution and selectable voltage range.",
+  "manufacturer": "Texas Instruments",
+  "interface": "I2C (0x48–0x4B)",
+  "icon": "tune",
+  "tags": ["adc", "analog", "i2c", "precision", "16-bit", "expansion"],
+  "signals": [
+    { "name": "ch0_mv", "unit": "mV", "type": "float", "description": "Channel 0 voltage" },
+    { "name": "ch1_mv", "unit": "mV", "type": "float", "description": "Channel 1 voltage" },
+    { "name": "ch2_mv", "unit": "mV", "type": "float", "description": "Channel 2 voltage" },
+    { "name": "ch3_mv", "unit": "mV", "type": "float", "description": "Channel 3 voltage" }
+  ],
+  "mqttTopicPattern": "plant/{zone}/{machine}/ch0_mv",
+  "gpioMap": {
+    "SDA": "GPIO_NUM_21",
+    "SCL": "GPIO_NUM_22"
+  },
+  "configSchema": {
+    "i2cAddress": { "type": "string", "default": "0x48" },
+    "gain": { "type": "string", "default": "GAIN_ONE", "enum": ["GAIN_TWOTHIRDS","GAIN_ONE","GAIN_TWO","GAIN_FOUR","GAIN_EIGHT","GAIN_SIXTEEN"] },
+    "dataRate": { "type": "integer", "default": 128 }
+  },
+  "firmwareHint": "Use Adafruit_ADS1X15 library. setGain() before readADC_SingleEnded(). Multiply raw * voltage resolution for millivolts.",
+  "routerosHint": null,
+  "datasheet": "https://www.ti.com/lit/ds/symlink/ads1115.pdf"
+}

@@ -1,0 +1,42 @@
+{
+  "id": "soil-moisture",
+  "name": "Capacitive Soil Moisture Sensor",
+  "category": "Agricultural",
+  "description": "Capacitive soil moisture sensor measuring dielectric constant. No corrosion vs resistive probes. Analog output 0–3.3V mapping to dry–saturated. Suitable for smart irrigation and greenhouse monitoring.",
+  "manufacturer": "Generic / DFRobot",
+  "interface": "Analog (ADC)",
+  "icon": "grass",
+  "tags": ["soil", "moisture", "agriculture", "irrigation", "analog", "adc"],
+  "signals": [
+    {
+      "name": "moisture_pct",
+      "unit": "%",
+      "type": "float",
+      "min": 0,
+      "max": 100,
+      "description": "Soil moisture percentage (0=dry, 100=saturated)",
+      "alarmLow": 20,
+      "alarmHigh": 90
+    },
+    {
+      "name": "adc_raw",
+      "unit": "ADC",
+      "type": "integer",
+      "min": 0,
+      "max": 4095,
+      "description": "Raw ADC reading"
+    }
+  ],
+  "mqttTopicPattern": "plant/{zone}/{machine}/moisture_pct",
+  "gpioMap": {
+    "AOUT": "GPIO_NUM_36"
+  },
+  "configSchema": {
+    "adcPin": { "type": "integer", "default": 36 },
+    "dryValue": { "type": "integer", "default": 3200, "description": "ADC reading in dry air" },
+    "wetValue": { "type": "integer", "default": 1500, "description": "ADC reading in water" }
+  },
+  "firmwareHint": "Calibrate dryValue (ADC in air) and wetValue (ADC in water). moisture% = map(adc, dryValue, wetValue, 0, 100). Clamp to [0, 100].",
+  "routerosHint": null,
+  "datasheet": null
+}

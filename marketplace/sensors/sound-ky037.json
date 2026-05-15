@@ -1,0 +1,38 @@
+{
+  "id": "sound-ky037",
+  "name": "KY-037 Sound / Noise Sensor",
+  "category": "Audio",
+  "description": "Microphone module with analog and digital outputs. Analog output for volume level; digital output triggers when volume exceeds threshold (adjustable via potentiometer). Useful for noise monitoring and event detection.",
+  "manufacturer": "Generic / Various",
+  "interface": "GPIO (Digital) + Analog (ADC)",
+  "icon": "volume_up",
+  "tags": ["sound", "noise", "microphone", "audio", "analog", "digital", "gpio"],
+  "signals": [
+    {
+      "name": "sound_level",
+      "unit": "ADC",
+      "type": "integer",
+      "min": 0,
+      "max": 4095,
+      "description": "Analog sound amplitude"
+    },
+    {
+      "name": "threshold_exceeded",
+      "unit": "",
+      "type": "boolean",
+      "description": "true when sound exceeds hardware threshold"
+    }
+  ],
+  "mqttTopicPattern": "plant/{zone}/{machine}/sound_level",
+  "gpioMap": {
+    "A0": "GPIO_NUM_33",
+    "D0": "GPIO_NUM_12"
+  },
+  "configSchema": {
+    "analogPin": { "type": "integer", "default": 33 },
+    "digitalPin": { "type": "integer", "default": 12 }
+  },
+  "firmwareHint": "Sample analog at 100–1000 Hz and compute RMS for a smooth envelope. Digital pin can trigger an interrupt on loud events.",
+  "routerosHint": null,
+  "datasheet": null
+}

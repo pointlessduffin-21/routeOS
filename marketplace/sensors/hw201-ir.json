@@ -1,0 +1,29 @@
+{
+  "id": "hw201-ir",
+  "name": "HW-201 IR Proximity / Lid Detector",
+  "category": "Proximity",
+  "description": "Infrared obstacle detection module with adjustable range (2–30 cm). Digital output goes LOW when object is detected. Used for lid-open detection, bin overflow alerts, and object presence.",
+  "manufacturer": "Generic / Various",
+  "interface": "GPIO (Digital Output)",
+  "icon": "sensors",
+  "tags": ["ir", "infrared", "proximity", "lid", "obstacle", "digital", "gpio"],
+  "signals": [
+    {
+      "name": "object_detected",
+      "unit": "",
+      "type": "boolean",
+      "description": "true when object is within detection range (active LOW hardware — inverted in firmware)"
+    }
+  ],
+  "mqttTopicPattern": "plant/{zone}/{machine}/object_detected",
+  "gpioMap": {
+    "OUT": "GPIO_NUM_15"
+  },
+  "configSchema": {
+    "outPin": { "type": "integer", "default": 15 },
+    "activeLow": { "type": "boolean", "default": true }
+  },
+  "firmwareHint": "Hardware output is active-LOW. Invert in firmware: detected = (digitalRead(pin) == LOW). Use INPUT_PULLUP if floating issues occur.",
+  "routerosHint": null,
+  "datasheet": null
+}

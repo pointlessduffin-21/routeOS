@@ -1,0 +1,32 @@
+{
+  "id": "gps-neo6m",
+  "name": "NEO-6M GPS Module",
+  "category": "Navigation",
+  "description": "u-blox NEO-6M GPS receiver with UART interface. 50-channel tracking, <1 m CEP accuracy with good sky view. Suitable for vehicle tracking, asset location, and geo-fencing.",
+  "manufacturer": "u-blox",
+  "interface": "UART (9600 baud default)",
+  "icon": "location_on",
+  "tags": ["gps", "gnss", "location", "tracking", "uart", "navigation"],
+  "signals": [
+    { "name": "latitude", "unit": "°", "type": "float", "min": -90, "max": 90, "description": "WGS84 latitude" },
+    { "name": "longitude", "unit": "°", "type": "float", "min": -180, "max": 180, "description": "WGS84 longitude" },
+    { "name": "altitude_m", "unit": "m", "type": "float", "description": "GPS altitude above sea level" },
+    { "name": "speed_kmh", "unit": "km/h", "type": "float", "min": 0, "description": "Ground speed" },
+    { "name": "satellites", "unit": "", "type": "integer", "min": 0, "description": "Number of satellites in use", "alarmLow": 3 },
+    { "name": "hdop", "unit": "", "type": "float", "description": "Horizontal dilution of precision (lower=better)" }
+  ],
+  "mqttTopicPattern": "plant/{zone}/{machine}/latitude",
+  "gpioMap": {
+    "TX": "GPIO_NUM_17",
+    "RX": "GPIO_NUM_16"
+  },
+  "configSchema": {
+    "uartTx": { "type": "integer", "default": 17 },
+    "uartRx": { "type": "integer", "default": 16 },
+    "baudRate": { "type": "integer", "default": 9600 },
+    "geofenceRadiusM": { "type": "number", "default": 100 }
+  },
+  "firmwareHint": "Use TinyGPS++ library. Parse GPRMC and GPGGA NMEA sentences. Allow 30–60 s cold start for first fix. Active antenna improves indoor reception.",
+  "routerosHint": null,
+  "datasheet": "https://www.u-blox.com/sites/default/files/products/documents/NEO-6_DataSheet_(GPS.G6-HW-09005).pdf"
+}

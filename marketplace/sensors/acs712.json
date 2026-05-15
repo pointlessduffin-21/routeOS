@@ -1,0 +1,39 @@
+{
+  "id": "acs712",
+  "name": "ACS712 Hall-Effect Current Sensor",
+  "category": "Power",
+  "description": "Allegro ACS712 linear current sensor using Hall-effect principle. Available in 5A, 20A, 30A variants. Analog output centered at VCC/2. No galvanic isolation gap, but fully isolated sensing path.",
+  "manufacturer": "Allegro MicroSystems",
+  "interface": "Analog (ADC)",
+  "icon": "bolt",
+  "tags": ["current", "power", "hall-effect", "analog", "adc", "energy"],
+  "signals": [
+    {
+      "name": "current_a",
+      "unit": "A",
+      "type": "float",
+      "description": "Measured AC or DC current",
+      "alarmHigh": 18
+    },
+    {
+      "name": "adc_raw",
+      "unit": "ADC",
+      "type": "integer",
+      "min": 0,
+      "max": 4095,
+      "description": "Raw 12-bit ADC reading"
+    }
+  ],
+  "mqttTopicPattern": "plant/{zone}/{machine}/current_a",
+  "gpioMap": {
+    "VIOUT": "GPIO_NUM_35"
+  },
+  "configSchema": {
+    "adcPin": { "type": "integer", "default": 35 },
+    "variant": { "type": "string", "default": "20A", "enum": ["5A", "20A", "30A"] },
+    "vcc": { "type": "number", "default": 3.3 }
+  },
+  "firmwareHint": "Sensitivity: 185 mV/A (5A), 100 mV/A (20A), 66 mV/A (30A). Offset = VCC/2. current = (adcVoltage - vcc/2) / sensitivity.",
+  "routerosHint": null,
+  "datasheet": "https://www.allegromicro.com/~/media/Files/Datasheets/ACS712-Datasheet.ashx"
+}

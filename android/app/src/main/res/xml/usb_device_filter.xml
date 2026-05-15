@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  USB device filter for ESP32 over USB OTG.
+  Covers the common CH340/CP2102/CP2104/FTDI chips used on ESP32 dev boards.
+  vendor-id is decimal (0x10C4 = 4292 Silicon Labs, 0x1A86 = 6790 CH340,
+  0x0403 = 1027 FTDI, 0x067B = 1659 Prolific).
+-->
+<resources>
+    <!-- Silicon Labs CP2102 / CP2104 (most common on NodeMCU / LOLIN boards) -->
+    <usb-device vendor-id="4292" />
+    <!-- WCH CH340 / CH341 (blue pill style, cheap boards) -->
+    <usb-device vendor-id="6790" />
+    <!-- FTDI FT232R (Adafruit, older boards) -->
+    <usb-device vendor-id="1027" />
+    <!-- Prolific PL2303 -->
+    <usb-device vendor-id="1659" />
+</resources>

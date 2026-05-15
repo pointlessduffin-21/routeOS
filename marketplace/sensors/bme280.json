@@ -1,0 +1,54 @@
+{
+  "id": "bme280",
+  "name": "BME280 Temp / Humidity / Pressure",
+  "category": "Environmental",
+  "description": "Bosch triple-sensor measuring temperature (±1°C), humidity (±3% RH), and barometric pressure (±1 hPa). Ideal for weather stations and HVAC monitoring.",
+  "manufacturer": "Bosch Sensortec",
+  "interface": "I2C (0x76 / 0x77) or SPI",
+  "icon": "thermostat",
+  "tags": ["temperature", "humidity", "pressure", "barometric", "i2c", "spi", "weather", "bosch"],
+  "signals": [
+    {
+      "name": "temperature_c",
+      "unit": "°C",
+      "type": "float",
+      "min": -40,
+      "max": 85,
+      "description": "Ambient temperature"
+    },
+    {
+      "name": "humidity_pct",
+      "unit": "%RH",
+      "type": "float",
+      "min": 0,
+      "max": 100,
+      "description": "Relative humidity"
+    },
+    {
+      "name": "pressure_hpa",
+      "unit": "hPa",
+      "type": "float",
+      "min": 300,
+      "max": 1100,
+      "description": "Barometric pressure"
+    },
+    {
+      "name": "altitude_m",
+      "unit": "m",
+      "type": "float",
+      "description": "Estimated altitude from sea-level pressure"
+    }
+  ],
+  "mqttTopicPattern": "plant/{zone}/{machine}/temperature_c",
+  "gpioMap": {
+    "SDA": "GPIO_NUM_21",
+    "SCL": "GPIO_NUM_22"
+  },
+  "configSchema": {
+    "i2cAddress": { "type": "string", "default": "0x76" },
+    "seaLevelPressureHpa": { "type": "number", "default": 1013.25 }
+  },
+  "firmwareHint": "Use Adafruit_BME280 library. Set oversampling for desired accuracy vs power trade-off.",
+  "routerosHint": null,
+  "datasheet": "https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme280-ds002.pdf"
+}

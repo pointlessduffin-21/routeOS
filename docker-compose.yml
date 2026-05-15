@@ -1,0 +1,65 @@
+services:
+
+  # ─── MQTT Broker (UNS) ────────────────────────────────────────────────────
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    container_name: routeos-mqtt
+    ports:
+      - "1883:1883"   # MQTT
+      - "9001:9001"   # WebSocket
+    volumes:
+      - ./config/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto-data:/mosquitto/data
+      - mosquitto-logs:/mosquitto/log
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mosquitto_pub", "-h", "localhost", "-t", "healthcheck", "-m", "ping", "-q", "0"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── Device Registry & Marketplace API (port 4003) ────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: routeos-backend
+    ports:
+      - "4003:4003"
+    environment:
+      PORT: "4003"
+      MQTT_URL: "mqtt://mosquitto:1883"
+      DB_PATH: "/data/routeos.db"
+      CATALOG_PATH: "/app/marketplace/sensors"
+    volumes:
+      - routeos-db:/data
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:4003/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ─── RouterOS Device Simulator (optional — comment out for production) ────
+  routeros-sim:
+    build:
+      context: ./simulator
+      dockerfile: Dockerfile
+    container_name: routeos-simulator
+    environment:
+      MQTT_BROKER_URL: "mqtt://mosquitto:1883"
+      BACKEND_URL: "http://backend:4003"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    profiles:
+      - simulation   # run with: docker compose --profile simulation up
+
+volumes:
+  mosquitto-data:
+  mosquitto-logs:
+  routeos-db:

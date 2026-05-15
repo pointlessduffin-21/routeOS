@@ -1,0 +1,13 @@
+{
+  "name": "routeos-marketplace",
+  "version": "1.0.0",
+  "description": "routeOS sensor catalog browser CLI",
+  "private": true,
+  "scripts": {
+    "browse": "bun index.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.4.0"
+  }
+}

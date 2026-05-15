@@ -1,0 +1,61 @@
+{
+  "id": "routeros-interfaces",
+  "name": "RouterOS Interface Statistics",
+  "category": "Network",
+  "description": "MikroTik RouterOS per-interface counters: RX/TX bytes, packets, errors, and drops published over MQTT. Enables network traffic monitoring and error alerting in the routeOS fleet.",
+  "manufacturer": "MikroTik",
+  "interface": "MQTT (RouterOS /iot mqtt)",
+  "icon": "router",
+  "tags": ["routeros", "mikrotik", "network", "interface", "traffic", "errors", "ethernet"],
+  "signals": [
+    {
+      "name": "rx_bytes",
+      "unit": "bytes",
+      "type": "integer",
+      "min": 0,
+      "description": "Total received bytes on interface"
+    },
+    {
+      "name": "tx_bytes",
+      "unit": "bytes",
+      "type": "integer",
+      "min": 0,
+      "description": "Total transmitted bytes on interface"
+    },
+    {
+      "name": "rx_errors",
+      "unit": "errors",
+      "type": "integer",
+      "min": 0,
+      "description": "Receive error count",
+      "alarmHigh": 100
+    },
+    {
+      "name": "tx_errors",
+      "unit": "errors",
+      "type": "integer",
+      "min": 0,
+      "description": "Transmit error count",
+      "alarmHigh": 100
+    },
+    {
+      "name": "rx_drops",
+      "unit": "drops",
+      "type": "integer",
+      "min": 0,
+      "description": "Receive drop count",
+      "alarmHigh": 50
+    }
+  ],
+  "mqttTopicPattern": "plant/{zone}/{machine}/interface_errors",
+  "gpioMap": null,
+  "configSchema": {
+    "interfaceName": { "type": "string", "default": "ether1", "description": "RouterOS interface name" },
+    "zone": { "type": "string" },
+    "machine": { "type": "string" },
+    "telemetryIntervalS": { "type": "integer", "default": 5 }
+  },
+  "firmwareHint": null,
+  "routerosHint": "Use /interface/ethernet get <name> rx-error to read error counters. Publish to plant/{zone}/{machine}/interface_errors as JSON with rx_errors, tx_errors, ts fields.",
+  "datasheet": "https://help.mikrotik.com/docs/display/ROS/Ethernet"
+}

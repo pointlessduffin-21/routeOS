@@ -1,0 +1,40 @@
+{
+  "id": "mq135",
+  "name": "MQ-135 Air Quality / Gas",
+  "category": "Air Quality",
+  "description": "Metal-oxide semiconductor gas sensor sensitive to NH₃, NOx, alcohol, benzene, smoke, and CO₂. Analog output proportional to gas concentration.",
+  "manufacturer": "Hanwei Electronics",
+  "interface": "Analog (ADC)",
+  "icon": "air",
+  "tags": ["gas", "air-quality", "co2", "smoke", "ammonia", "adc", "analog"],
+  "signals": [
+    {
+      "name": "adc_raw",
+      "unit": "ADC",
+      "type": "integer",
+      "min": 0,
+      "max": 4095,
+      "description": "Raw 12-bit ADC reading"
+    },
+    {
+      "name": "ppm_co2_eq",
+      "unit": "ppm",
+      "type": "float",
+      "min": 0,
+      "description": "Estimated CO₂-equivalent (requires calibration curve)",
+      "alarmHigh": 1000
+    }
+  ],
+  "mqttTopicPattern": "plant/{zone}/{machine}/ppm_co2_eq",
+  "gpioMap": {
+    "AOUT": "GPIO_NUM_34"
+  },
+  "configSchema": {
+    "adcPin": { "type": "integer", "default": 34 },
+    "rl_ohm": { "type": "number", "default": 10000, "description": "Load resistor value (Ω)" },
+    "ro_ohm": { "type": "number", "default": 10000, "description": "Sensor resistance in clean air" }
+  },
+  "firmwareHint": "Preheat sensor 24-48 hours before calibration. Use analogRead() with 3.3V reference. Apply log-linear curve: ppm = a * (Rs/Ro)^b.",
+  "routerosHint": null,
+  "datasheet": "https://www.olimex.com/Products/Components/Sensors/SNS-MQ135/resources/SNS-MQ135.pdf"
+}

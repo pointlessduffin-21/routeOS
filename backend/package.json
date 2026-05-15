@@ -1,0 +1,17 @@
+{
+  "name": "routeos-backend",
+  "version": "1.0.0",
+  "description": "routeOS Device Registry, Marketplace API & UNS Bridge",
+  "module": "src/index.ts",
+  "scripts": {
+    "start": "bun src/index.ts",
+    "dev": "bun --watch src/index.ts"
+  },
+  "dependencies": {
+    "mqtt": "^5.10.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  }
+}

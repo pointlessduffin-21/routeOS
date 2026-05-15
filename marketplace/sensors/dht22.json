@@ -1,0 +1,51 @@
+{
+  "id": "dht22",
+  "name": "DHT22 Temperature & Humidity",
+  "category": "Environmental",
+  "description": "Capacitive humidity sensor with NTC temperature element. ±0.5°C / ±2% RH accuracy. Single-wire protocol, 0.5 Hz max sample rate.",
+  "manufacturer": "Aosong Electronics",
+  "interface": "1-Wire (single GPIO)",
+  "icon": "thermostat",
+  "tags": ["temperature", "humidity", "environmental", "1-wire", "dht"],
+  "signals": [
+    {
+      "name": "temperature_c",
+      "unit": "°C",
+      "type": "float",
+      "min": -40,
+      "max": 80,
+      "description": "Ambient temperature",
+      "alarmHigh": 40,
+      "alarmLow": -10
+    },
+    {
+      "name": "humidity_pct",
+      "unit": "%RH",
+      "type": "float",
+      "min": 0,
+      "max": 100,
+      "description": "Relative humidity",
+      "alarmHigh": 85,
+      "alarmLow": 10
+    },
+    {
+      "name": "heat_index_c",
+      "unit": "°C",
+      "type": "float",
+      "min": -40,
+      "max": 80,
+      "description": "Calculated heat index (feels-like)"
+    }
+  ],
+  "mqttTopicPattern": "plant/{zone}/{machine}/temperature_c",
+  "gpioMap": {
+    "DATA": "GPIO_NUM_4"
+  },
+  "configSchema": {
+    "dataPin": { "type": "integer", "default": 4 },
+    "sampleIntervalMs": { "type": "integer", "default": 2000 }
+  },
+  "firmwareHint": "Use DHT library by Adafruit. Minimum 2 s between readings. Pull DATA high with 10 kΩ resistor.",
+  "routerosHint": null,
+  "datasheet": "https://www.sparkfun.com/datasheets/Sensors/Temperature/DHT22.pdf"
+}

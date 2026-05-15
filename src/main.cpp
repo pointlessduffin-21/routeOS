@@ -47,6 +47,8 @@
 #include <esp_task_wdt.h>
 #include <esp_idf_version.h>
 #include <esp_sleep.h>
+#include <ArduinoOTA.h>
+#include <Update.h>
 
 #include "config_manager.h"
 #include "ble_provisioning.h"
@@ -98,13 +100,16 @@
 #define ECHO_PIN            US2_ECHO_PIN
 
 #define IR_PIN              4         // HW-201 OUT: LOW = object detected (lid closed)
+#undef  BATTERY_ADC_PIN
 #define BATTERY_ADC_PIN     34
+#undef  LED_PIN
 #define LED_PIN             2
 
 // =============================================================================
 //  SENSOR CONSTANTS
 // =============================================================================
 
+#undef  FIRMWARE_VERSION
 #define FIRMWARE_VERSION    "4.0.0"
 #define SENSOR_SAMPLES      5
 #define SENSOR_TIMEOUT_US   30000     // 30ms timeout ~= 5m max range
@@ -238,6 +243,9 @@ bool             bleActive = false;
 uint8_t  cfgApMode            = AP_MODE_ALWAYS;
 bool     apOnDemandActive     = false;       // true when on-demand AP is temporarily enabled
 unsigned long apOnDemandStart = 0;           // millis() when on-demand AP was enabled
+
+// OTA
+bool otaInProgress = false;
 
 // =============================================================================
 //  NVS CONFIGURATION
@@ -1394,7 +1402,47 @@ void setupWebServer() {
   webServer.on("/api/reboot",        HTTP_POST, handleApiReboot);
   webServer.on("/api/force-publish", HTTP_POST, handleApiForcePublish);
   webServer.on("/api/factory-reset", HTTP_POST, handleApiFactoryReset);
-  webServer.on("/api/ap-mode",      HTTP_POST, handleApiApMode);
+  webServer.on("/api/ap-mode",       HTTP_POST, handleApiApMode);
+
+  // HTTP OTA endpoint — POST binary to /api/ota
+  // Clients: desktop app, curl, Python script
+  webServer.on("/api/ota", HTTP_POST,
+    []() {
+      // Final response after upload completes
+      bool ok = !Update.hasError();
+      webServer.send(ok ? 200 : 500,
+        "application/json",
+        ok ? "{\"status\":\"ok\",\"message\":\"OTA complete — rebooting\"}"
+           : "{\"status\":\"error\",\"message\":\"OTA failed\"}");
+      if (ok) {
+        delay(200);
+        ESP.restart();
+      }
+      otaInProgress = false;
+    },
+    []() {
+      // Streaming upload handler
+      HTTPUpload& upload = webServer.upload();
+      if (upload.status == UPLOAD_FILE_START) {
+        otaInProgress = true;
+        Serial.printf("[ota] Starting: %s (%u bytes)\n", upload.filename.c_str(), upload.totalSize);
+        if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
+          Update.printError(Serial);
+        }
+      } else if (upload.status == UPLOAD_FILE_WRITE) {
+        if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) {
+          Update.printError(Serial);
+        }
+        Serial.printf("[ota] Written %u / %u bytes\r", upload.currentSize, upload.totalSize);
+      } else if (upload.status == UPLOAD_FILE_END) {
+        if (Update.end(true)) {
+          Serial.printf("\n[ota] Upload complete: %u bytes\n", upload.totalSize);
+        } else {
+          Update.printError(Serial);
+        }
+      }
+    }
+  );
 
   webServer.onNotFound(handleNotFound);
   webServer.begin();
@@ -1419,6 +1467,39 @@ void initWatchdog() {
 #endif
   esp_task_wdt_add(NULL);  // add current task to watchdog
   Serial.printf("[wdt] Watchdog configured — %d second timeout\n", WDT_TIMEOUT_SEC);
+}
+
+// =============================================================================
+//  ARDUINO OTA (WiFi-based, used with PlatformIO / desktop app)
+// =============================================================================
+
+void setupArduinoOTA() {
+  ArduinoOTA.setHostname(("routeos-" + cfgDeviceCode).c_str());
+  ArduinoOTA.setPassword("routeos-ota");   // change via cfgOtaPass if you extend NVS config
+
+  ArduinoOTA.onStart([]() {
+    String type = (ArduinoOTA.getCommand() == U_FLASH) ? "firmware" : "filesystem";
+    Serial.printf("[ota] ArduinoOTA start: %s\n", type.c_str());
+    otaInProgress = true;
+  });
+  ArduinoOTA.onEnd([]() {
+    Serial.println("\n[ota] ArduinoOTA complete");
+    otaInProgress = false;
+  });
+  ArduinoOTA.onProgress([](unsigned int done, unsigned int total) {
+    Serial.printf("[ota] %u%%\r", done * 100 / total);
+  });
+  ArduinoOTA.onError([](ota_error_t err) {
+    Serial.printf("[ota] Error[%u]: ", err);
+    if      (err == OTA_AUTH_ERROR)    Serial.println("auth failed");
+    else if (err == OTA_BEGIN_ERROR)   Serial.println("begin failed");
+    else if (err == OTA_CONNECT_ERROR) Serial.println("connect failed");
+    else if (err == OTA_RECEIVE_ERROR) Serial.println("receive failed");
+    else if (err == OTA_END_ERROR)     Serial.println("end failed");
+    otaInProgress = false;
+  });
+  ArduinoOTA.begin();
+  Serial.printf("[ota] ArduinoOTA ready as 'routeos-%s'\n", cfgDeviceCode.c_str());
 }
 
 // =============================================================================
@@ -1499,6 +1580,11 @@ void setup() {
   // Start web server (works in both AP and STA mode)
   setupWebServer();
 
+  // Start ArduinoOTA when connected to WiFi (allows PlatformIO + desktop app OTA)
+  if (wifiConnected) {
+    setupArduinoOTA();
+  }
+
   // Start BLE provisioning (allows mobile app to configure device via Bluetooth)
   cfgManager.begin();
   String bleName = String(BLE_DEVICE_NAME_PREFIX) + cfgDeviceCode;
@@ -1525,6 +1611,11 @@ void loop() {
   // Process captive portal DNS + web requests
   dnsServer.processNextRequest();
   webServer.handleClient();
+
+  // ArduinoOTA handler (WiFi OTA — also drives the watchdog reset internally)
+  if (wifiConnected && !otaInProgress) {
+    ArduinoOTA.handle();
+  }
 
   // MQTT keepalive
   if (mqtt.connected()) {

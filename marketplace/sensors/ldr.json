@@ -1,0 +1,39 @@
+{
+  "id": "ldr",
+  "name": "LDR Light-Dependent Resistor",
+  "category": "Light",
+  "description": "Photoresistor forming a voltage divider with a fixed resistor. Analog output proportional to ambient light level. Simple ambient light sensing for day/night detection and energy optimization.",
+  "manufacturer": "Generic",
+  "interface": "Analog (ADC)",
+  "icon": "light_mode",
+  "tags": ["light", "lux", "photoresistor", "analog", "adc", "day-night"],
+  "signals": [
+    {
+      "name": "light_pct",
+      "unit": "%",
+      "type": "float",
+      "min": 0,
+      "max": 100,
+      "description": "Relative light level (0=dark, 100=bright)"
+    },
+    {
+      "name": "adc_raw",
+      "unit": "ADC",
+      "type": "integer",
+      "min": 0,
+      "max": 4095,
+      "description": "Raw ADC reading"
+    }
+  ],
+  "mqttTopicPattern": "plant/{zone}/{machine}/light_pct",
+  "gpioMap": {
+    "AOUT": "GPIO_NUM_32"
+  },
+  "configSchema": {
+    "adcPin": { "type": "integer", "default": 32 },
+    "fixedResistorOhm": { "type": "integer", "default": 10000 }
+  },
+  "firmwareHint": "Voltage divider: Vout = VCC * fixedR / (LDR_R + fixedR). LDR resistance decreases with light. light% = adc / 4095 * 100 (or invert depending on divider orientation).",
+  "routerosHint": null,
+  "datasheet": null
+}

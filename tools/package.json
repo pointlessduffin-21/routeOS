@@ -1,0 +1,18 @@
+{
+  "name": "routeos-tools",
+  "version": "1.0.0",
+  "description": "routeOS CLI tools — provision, tether, monitor",
+  "private": true,
+  "scripts": {
+    "provision": "bun provision.ts",
+    "tether":    "bun tether.ts",
+    "monitor":   "bun monitor.ts"
+  },
+  "dependencies": {
+    "mqtt": "^5.15.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.4.0"
+  }
+}

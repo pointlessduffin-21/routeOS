@@ -1,0 +1,54 @@
+{
+  "id": "routeros-system",
+  "name": "RouterOS System Metrics",
+  "category": "Network",
+  "description": "MikroTik RouterOS device publishing CPU load, free memory, uptime, and system temperature over MQTT. Follows the Syntag UNS plant/{zone}/{machine}/{signal} topic pattern.",
+  "manufacturer": "MikroTik",
+  "interface": "MQTT (RouterOS /iot mqtt)",
+  "icon": "router",
+  "tags": ["routeros", "mikrotik", "network", "cpu", "memory", "uptime", "system"],
+  "signals": [
+    {
+      "name": "cpu_load",
+      "unit": "%",
+      "type": "float",
+      "min": 0,
+      "max": 100,
+      "description": "CPU utilisation percentage",
+      "alarmHigh": 90
+    },
+    {
+      "name": "free_memory",
+      "unit": "KB",
+      "type": "integer",
+      "min": 0,
+      "description": "Free RAM in kilobytes",
+      "alarmLow": 1024
+    },
+    {
+      "name": "uptime_seconds",
+      "unit": "s",
+      "type": "integer",
+      "min": 0,
+      "description": "System uptime in seconds"
+    },
+    {
+      "name": "cpu_temperature",
+      "unit": "°C",
+      "type": "float",
+      "description": "CPU die temperature (where available)",
+      "alarmHigh": 75
+    }
+  ],
+  "mqttTopicPattern": "plant/{zone}/{machine}/cpu_load",
+  "gpioMap": null,
+  "configSchema": {
+    "deviceId": { "type": "string", "description": "Unique RouterOS device identifier" },
+    "zone": { "type": "string", "description": "UNS zone name" },
+    "machine": { "type": "string", "description": "UNS machine name" },
+    "telemetryIntervalS": { "type": "integer", "default": 5 }
+  },
+  "firmwareHint": null,
+  "routerosHint": "Requires RouterOS 7.x for /iot mqtt commands. Set global $syntagHost, $deviceZone, $deviceMachine variables then run syntag-telemetry script on a 5 s scheduler.",
+  "datasheet": "https://help.mikrotik.com/docs/display/ROS/IoT"
+}
