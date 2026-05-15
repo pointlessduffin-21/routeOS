@@ -49,3 +49,9 @@ mosquitto-logs/
 .env
 .env.local
 *.env
+
+# Desktop app build artifacts
+desktop/build/
+desktop/dist/
+desktop/__pycache__/
+desktop/icon.png
