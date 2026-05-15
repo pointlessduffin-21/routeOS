@@ -1175,7 +1175,6 @@ class MainWindow(QMainWindow):
 def main():
     app = QApplication(sys.argv)
     app.setStyleSheet(SS)
-    app.setAttribute(Qt.ApplicationAttribute.AA_UseHighDpiPixmaps, True)
     win = MainWindow()
     win.show()
     sys.exit(app.exec())
