@@ -1071,6 +1071,249 @@ class SensorPage(QWidget):
 
 
 # =============================================================================
+# Page 4 -- Flash ESP32 via USB (esptool / pio upload)
+# =============================================================================
+class FlashPage(QWidget):
+    _sig = pyqtSignal(str, str)
+
+    def __init__(self):
+        super().__init__()
+        self._proc = None
+        self._sig.connect(lambda t, c: self.log.append_line(t, c))
+        self._build()
+
+    def _build(self):
+        root = QVBoxLayout(self)
+        root.setContentsMargins(24, 20, 24, 20)
+        root.setSpacing(14)
+
+        # header
+        hdr = QHBoxLayout()
+        title = QLabel("Flash ESP32 via USB")
+        title.setStyleSheet(f"font-size: 20px; font-weight: 700; color: {TEXT};")
+        hdr.addWidget(title)
+        hdr.addStretch()
+        root.addLayout(hdr)
+        root.addWidget(lbl(
+            "Write firmware to a fresh or bricked ESP32 over USB using esptool. "
+            "No existing firmware required.", muted=True
+        ))
+
+        body = QHBoxLayout(); body.setSpacing(20)
+        root.addLayout(body, 1)
+
+        # -- left: settings ---------------------------------------------------
+        left = QVBoxLayout(); left.setSpacing(12)
+        body.addLayout(left, 1)
+
+        port_grp = QGroupBox("Serial Port")
+        pl = QFormLayout(port_grp); pl.setSpacing(10)
+        pr = QHBoxLayout(); pr.setSpacing(6)
+        self.port_combo = QComboBox(); self.port_combo.setMinimumWidth(180)
+        self.refresh_btn = QPushButton("⟳"); self.refresh_btn.setObjectName("ghost")
+        self.refresh_btn.setFixedWidth(36)
+        pr.addWidget(self.port_combo, 1); pr.addWidget(self.refresh_btn)
+        pr_w = QWidget(); pr_w.setLayout(pr)
+        self.baud_combo = QComboBox()
+        for b in ["115200", "460800", "921600"]:
+            self.baud_combo.addItem(b)
+        self.baud_combo.setCurrentText("921600")
+        self.chip_combo = QComboBox()
+        for c in ["auto", "esp32", "esp32s2", "esp32s3", "esp32c3", "esp32c6"]:
+            self.chip_combo.addItem(c)
+        pl.addRow("Port",       pr_w)
+        pl.addRow("Flash baud", self.baud_combo)
+        pl.addRow("Chip type",  self.chip_combo)
+        left.addWidget(port_grp)
+
+        fw_grp = QGroupBox("Firmware")
+        fl = QFormLayout(fw_grp); fl.setSpacing(10)
+        fw_row = QHBoxLayout(); fw_row.setSpacing(6)
+        self.fw_edit = QLineEdit(); self.fw_edit.setReadOnly(True)
+        self.fw_edit.setPlaceholderText("Select .bin file  (or build with PlatformIO below)")
+        browse = QPushButton("Browse..."); browse.clicked.connect(self._browse)
+        fw_row.addWidget(self.fw_edit, 1); fw_row.addWidget(browse)
+        fw_w = QWidget(); fw_w.setLayout(fw_row)
+        fl.addRow("Firmware", fw_w)
+        self.erase_check = QCheckBox("Erase entire flash before writing")
+        fl.addRow("", self.erase_check)
+        left.addWidget(fw_grp)
+
+        # tool selector
+        tool_grp = QGroupBox("Flash Tool")
+        tl = QVBoxLayout(tool_grp); tl.setSpacing(8)
+        self.tool_esptool = QPushButton("esptool.py  (direct, recommended for fresh boards)")
+        self.tool_pio     = QPushButton("pio run --target upload  (uses platformio.ini env)")
+        self.tool_esptool.setObjectName("primary")
+        self.tool_pio.setObjectName("ghost")
+        tl.addWidget(self.tool_esptool)
+        tl.addWidget(self.tool_pio)
+
+        pio_row = QHBoxLayout(); pio_row.setSpacing(6)
+        pio_row.addWidget(lbl("PIO env:", muted=True))
+        self.pio_env = QLineEdit("tc2"); self.pio_env.setFixedWidth(80)
+        pio_row.addWidget(self.pio_env); pio_row.addStretch()
+        tl.addLayout(pio_row)
+        left.addWidget(tool_grp)
+
+        # abort
+        self.abort_btn = QPushButton("Abort")
+        self.abort_btn.setObjectName("danger")
+        self.abort_btn.setEnabled(False)
+        left.addWidget(self.abort_btn)
+        left.addStretch()
+
+        # -- right: log -------------------------------------------------------
+        right = QVBoxLayout(); right.setSpacing(8)
+        body.addLayout(right, 1)
+
+        right.addWidget(lbl("Flash Output", muted=True))
+        self.log = LogView()
+        right.addWidget(self.log, 1)
+
+        # progress row
+        pr2 = QHBoxLayout()
+        self.progress = QProgressBar(); self.progress.setValue(0)
+        self.pct_lbl  = lbl("—", muted=True)
+        self.pct_lbl.setFixedWidth(42)
+        pr2.addWidget(self.progress, 1); pr2.addWidget(self.pct_lbl)
+        right.addLayout(pr2)
+
+        # wiring
+        self.refresh_btn.clicked.connect(self._refresh_ports)
+        self.tool_esptool.clicked.connect(self._flash_esptool)
+        self.tool_pio.clicked.connect(self._flash_pio)
+        self.abort_btn.clicked.connect(self._abort)
+        self._refresh_ports()
+        self._detect_tools()
+
+    def _refresh_ports(self):
+        self.port_combo.clear()
+        for p in serial.tools.list_ports.comports():
+            label = f"{p.device}  ({p.description})" if p.description else p.device
+            self.port_combo.addItem(label, p.device)
+
+    def _detect_tools(self):
+        """Check if esptool is on PATH and show a hint if not."""
+        import shutil
+        if not shutil.which("esptool.py") and not shutil.which("esptool"):
+            self._sig.emit(
+                "esptool not found on PATH — install with: pip install esptool", WARNING
+            )
+        else:
+            import importlib.metadata
+            try:
+                ver = importlib.metadata.version("esptool")
+                self._sig.emit(f"esptool {ver} detected", SUCCESS)
+            except Exception:
+                self._sig.emit("esptool detected", SUCCESS)
+
+    def _browse(self):
+        path, _ = QFileDialog.getOpenFileName(self, "Select firmware .bin", "", "Binary (*.bin)")
+        if path:
+            self.fw_edit.setText(path)
+
+    def _port(self) -> str | None:
+        return self.port_combo.currentData()
+
+    def _set_busy(self, busy: bool):
+        self.tool_esptool.setEnabled(not busy)
+        self.tool_pio.setEnabled(not busy)
+        self.abort_btn.setEnabled(busy)
+        if not busy:
+            self.progress.setValue(0)
+            self.pct_lbl.setText("—")
+
+    def _flash_esptool(self):
+        port = self._port()
+        fw   = self.fw_edit.text().strip()
+        if not port:
+            self._sig.emit("Select a serial port first.", ERROR_C); return
+        if not fw:
+            self._sig.emit("Select a firmware .bin file first.", ERROR_C); return
+
+        import shutil
+        tool = shutil.which("esptool.py") or shutil.which("esptool")
+        if not tool:
+            self._sig.emit(
+                "esptool not found. Install with: pip install esptool", ERROR_C
+            ); return
+
+        chip = self.chip_combo.currentText()
+        baud = self.baud_combo.currentText()
+
+        cmd = [tool, "--chip", chip, "--port", port, "--baud", baud,
+               "--before", "default_reset", "--after", "hard_reset"]
+        if self.erase_check.isChecked():
+            cmd += ["erase_flash", "&&", tool, "--chip", chip, "--port", port, "--baud", baud]
+        cmd += ["write_flash", "-z", "--flash_mode", "dio",
+                "--flash_freq", "40m", "--flash_size", "detect", "0x0", fw]
+
+        self._run(cmd)
+
+    def _flash_pio(self):
+        port = self._port()
+        env  = self.pio_env.text().strip() or "tc2"
+        root = str(Path(__file__).parent.parent)
+        cmd  = ["pio", "run", "-e", env, "--target", "upload"]
+        if port:
+            cmd += ["--upload-port", port]
+        self._run(cmd, cwd=root)
+
+    def _run(self, cmd: list, cwd: str | None = None):
+        self._set_busy(True)
+        self.log.clear()
+        self.progress.setRange(0, 0)  # indeterminate to start
+        self._sig.emit("$ " + " ".join(cmd), TEXT_M)
+
+        def _do():
+            try:
+                self._proc = subprocess.Popen(
+                    cmd, cwd=cwd,
+                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                    text=True,
+                )
+                for line in self._proc.stdout:
+                    line = line.rstrip()
+                    lo   = line.lower()
+                    c    = (SUCCESS  if any(x in lo for x in ("hash of data", "leaving", "hard resetting", "done"))
+                            else ERROR_C if any(x in lo for x in ("error", "failed", "invalid"))
+                            else WARNING  if "warning" in lo
+                            else TEXT_M)
+                    self._sig.emit(line, c)
+
+                    # parse esptool progress: "Writing at 0x... (N %)"
+                    m = _re.search(r"\((\d+) %\)", line)
+                    if m:
+                        pct = int(m.group(1))
+                        self.progress.setRange(0, 100)
+                        self.progress.setValue(pct)
+                        self.pct_lbl.setText(f"{pct}%")
+
+                self._proc.wait()
+                ok = self._proc.returncode == 0
+                self._sig.emit(
+                    "Flash complete — board rebooting" if ok else f"Failed (exit {self._proc.returncode})",
+                    SUCCESS if ok else ERROR_C,
+                )
+                if ok:
+                    self.progress.setRange(0, 100)
+                    self.progress.setValue(100)
+                    self.pct_lbl.setText("100%")
+            except Exception as e:
+                self._sig.emit(f"Error: {e}", ERROR_C)
+            finally:
+                self._set_busy(False)
+
+        threading.Thread(target=_do, daemon=True).start()
+
+    def _abort(self):
+        if self._proc and self._proc.poll() is None:
+            self._proc.terminate()
+            self._sig.emit("[aborted]", WARNING)
+
+
+# =============================================================================
 # Sidebar nav button
 # =============================================================================
 class NavButton(QPushButton):
@@ -1135,8 +1378,9 @@ class MainWindow(QMainWindow):
         nav_items = [
             ("📟", "Serial Monitor",   0),
             ("⚙",  "Provisioning",     1),
-            ("⬆",  "OTA Update",       2),
-            ("🔌", "Sensors",          3),
+            ("🔥", "Flash ESP32",      2),
+            ("⬆",  "OTA Update",       3),
+            ("🔌", "Sensors",          4),
         ]
         self._nav_btns: list[NavButton] = []
         for icon, label, idx in nav_items:
@@ -1155,7 +1399,7 @@ class MainWindow(QMainWindow):
         # Content
         self._stack = QStackedWidget()
         self._stack.setStyleSheet(f"background: {BG};")
-        self._pages = [SerialPage(), ProvisionPage(), OtaPage(), SensorPage()]
+        self._pages = [SerialPage(), ProvisionPage(), FlashPage(), OtaPage(), SensorPage()]
         for p in self._pages:
             self._stack.addWidget(p)
         outer.addWidget(self._stack, 1)
