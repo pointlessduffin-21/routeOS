@@ -153,6 +153,9 @@ pins, `interval_ms`, `samples`, `pull`, `invert` and I2C `address`. Everything e
 | `PUT /api/drivers/{id}` | Bearer token | Install or replace a driver. The body's `id` must match the path. |
 | `DELETE /api/drivers/{id}` | Bearer token | Remove a driver. |
 
+The event log, Wi-Fi management and over-the-air firmware updates are further routes of the same API; see
+[routeos-management.md](routeos-management.md).
+
 The management routes exist only in firmware built with `-DROUTEOS_MANAGE=1`
 (the PlatformIO `virtual-hmi-control` environment, or `--control` with the Arduino
 exporter). A view-only build answers `manage.enabled: false` and refuses them.

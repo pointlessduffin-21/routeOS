@@ -15,7 +15,10 @@ Arduino IDE, see the [Arduino IDE guide](docs/arduino-ide-guide.md).
 (`GET /api/capabilities`, plus token-protected driver management in a `--control`
 build). [Termz](https://github.com/pointlessduffin-21/cubeterm) reads the board's chip,
 flash, PSRAM and free memory, shows which [packages](docs/routeos-packages.md) fit it,
-and installs sensor drivers and plugins over the network without reflashing. The catalog
+and installs sensor drivers and plugins over the network without reflashing. It also shows
+the board's Wi-Fi signal and changes its network (undoing the change if the new network does not work), reads
+its event log, and updates its firmware wirelessly with automatic rollback if the new firmware does not start; see
+[routeOS management](docs/routeos-management.md). The catalog
 is in [`marketplace/packages/`](marketplace/packages); RVDP and Tailscale are listed as
 modules. Tailscale needs a board with PSRAM, so it is not available on the 4 MB lab
 ESP32. The Core and the install flow have run on that lab board (see the status in the

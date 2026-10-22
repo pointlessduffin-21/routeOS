@@ -142,9 +142,22 @@ Export the interactive HMI sketch:
 ```
 
 `--control` turns on pointer and keyboard control **and** the routeOS management API
-(`-DROUTEOS_MANAGE=1`), which lets [Termz](routeos-packages.md) install drivers. For
-a view-only firmware build, omit `--control`: the device still reports its hardware
-but refuses every management call. Then open:
+(`-DROUTEOS_MANAGE=1`), which lets [Termz](routeos-packages.md) install drivers, change the
+Wi-Fi network, read the event log and [update the firmware wirelessly](routeos-management.md).
+For a view-only firmware build, omit `--control`: the device still reports its hardware
+but refuses every management call.
+
+The sketch declares itself routeOS firmware with `ROUTEOS_IMAGE(FW_NAME, FW_VERSION);` and
+serves HTTP with `routeos::Server` instead of `WebServer` (the
+[management page](routeos-management.md) says why). Keep both: without the first the sketch
+does not link, and Termz and the device refuse an image that lacks the marker it stamps.
+
+Flash a board over USB once. After that it can be updated from Termz with the application
+image Arduino produces (Sketch, then Export Compiled Binary, or
+`arduino-cli compile --export-binaries`). Take **`<sketch>.ino.bin`**, not `.bootloader.bin`
+or `.partitions.bin`: Termz's image check accepts the first and refuses the bootloader, which
+carries no routeOS marker. Termz warns when a file has the same version as the firmware
+already running, so raise `FW_VERSION` for each build you install. Then open:
 
 ```text
 C:\Users\yeems214\routeOS\build\arduino\routeOS_HMI\routeOS_HMI.ino
@@ -224,13 +237,21 @@ isolated scratch install that did not touch your IDE settings:
 | --- | --- | --- |
 | Production (`routeOS`) | ESP32 Dev Module, Huge APP | Compiles; 1,674,053 bytes flash (53%), 62,812 bytes RAM |
 | Orbit HMI (`routeOS_HMI`, `--control`), before routeOS Core | ESP32 Dev Module, default partitions | Compiles; 1,058,425 bytes flash (80%), 104,744 bytes RAM |
-| Orbit HMI (`routeOS_HMI`, `--control`), with routeOS Core | ESP32 Dev Module, default partitions | Compiles; 1,121,661 bytes flash (85%), 109,488 bytes RAM |
+| Orbit HMI (`routeOS_HMI`, `--control`), with routeOS Core 1.0 | ESP32 Dev Module, default partitions | Compiles; 1,121,661 bytes flash (85%), 109,488 bytes RAM |
+| Orbit HMI (`routeOS_HMI`, `--control`), with routeOS Core 1.1 (log, Wi-Fi, updates) | ESP32 Dev Module, default partitions | Compiles; 1,163,453 bytes flash (88%), 115,496 bytes RAM |
 
-Core adds about 63 KB of flash and 4.7 KB of static RAM. At 85% of the default
-1.25 MB app slot there is room for little else on this partition scheme. The HMI's RAM figure matched the PlatformIO build
-before Core was added, which showed `build_opt.h` is being applied. These were
-compile-only checks: the Arduino-built images were **not uploaded** to the board.
-The firmware running on the ESP32 was built and flashed with PlatformIO.
+Core 1.0 added about 63 KB of flash and 4.7 KB of static RAM; 1.1 added another 42 KB and
+6 KB. At 88% of the default 1.25 MB app slot there is little room left on this partition
+scheme, and a larger image needs another scheme (which needs a USB flash). The HMI's RAM
+figure matched the PlatformIO build before Core was added, which showed `build_opt.h` is
+being applied. The 1.1 image from Arduino is 1,170,032 bytes and the PlatformIO one
+1,165,824, so the two builds are close but not identical.
+
+These were compile-only checks: the Arduino-built images were **not uploaded** to the
+board. Termz's image check accepts the Arduino-built `rosh.ino.bin` (it reads as routeOS
+firmware 1.1.0 on Core 1.1.0) and refuses the bootloader and partition files, but nobody has
+installed an Arduino-built image on the board. The firmware running on the ESP32 was built
+and flashed with PlatformIO.
 
 **Windows path length:** the toolchain failed with "The filename or extension is
 too long" when the sketch, board data and build folder sat under a deep path. If
