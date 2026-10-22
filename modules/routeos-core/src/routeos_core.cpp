@@ -2,6 +2,7 @@
 #include "routeos_drivers.h"
 #include <ArduinoJson.h>
 #include <Preferences.h>
+#include <WiFi.h>
 #include <uri/UriBraces.h>
 #include <esp_heap_caps.h>
 #include <esp_ota_ops.h>
@@ -129,6 +130,37 @@ static String capabilities() {
   return out;
 }
 
+// Live state for a management console. Behind the token: it names the Wi-Fi network and addresses.
+static String systemInfo() {
+  JsonDocument doc;
+  doc["schema"] = 1;
+  JsonObject wifi = doc["wifi"].to<JsonObject>();
+  bool up = WiFi.status() == WL_CONNECTED;
+  wifi["connected"] = up;
+  wifi["ssid"] = up ? WiFi.SSID() : String("");
+  wifi["rssi"] = up ? WiFi.RSSI() : 0;
+  wifi["channel"] = up ? WiFi.channel() : 0;
+  wifi["ip"] = WiFi.localIP().toString();
+  wifi["mac"] = WiFi.macAddress();
+  JsonObject mem = doc["memory"].to<JsonObject>();
+  mem["heap_free"] = ESP.getFreeHeap();
+  mem["heap_min"] = ESP.getMinFreeHeap();
+  mem["largest_block"] = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
+  JsonObject fw = doc["firmware"].to<JsonObject>();
+  fw["sketch_kb"] = ESP.getSketchSize() / 1024;
+  fw["free_sketch_kb"] = ESP.getFreeSketchSpace() / 1024;
+  doc["uptime_s"] = millis() / 1000;
+  doc["reset_reason"] = resetReason();
+  String out;
+  serializeJson(doc, out);
+  return out;
+}
+
+static void rebootTask(void*) {
+  vTaskDelay(pdMS_TO_TICKS(700));     // let the HTTP reply leave first
+  ESP.restart();
+}
+
 static void reply(WebServer& http, int code, const String& body) {
   http.sendHeader("Cache-Control", "no-store");
   http.send(code, "application/json", body);
@@ -160,6 +192,12 @@ void attach(WebServer& http) {
   static const char* headers[] = {"Authorization"};
   http.collectHeaders(headers, 1);
   http.on("/api/capabilities", HTTP_GET, [&http]() { reply(http, 200, capabilities()); });
+  http.on("/api/system", HTTP_GET, [&http]() { if (authorized(http)) reply(http, 200, systemInfo()); });
+  http.on("/api/reboot", HTTP_POST, [&http]() {
+    if (!authorized(http)) return;
+    reply(http, 200, "{\"ok\":true,\"rebooting\":true}");
+    xTaskCreate(rebootTask, "ros-reboot", 2048, nullptr, 1, nullptr);
+  });
   http.on("/api/drivers", HTTP_GET, [&http]() { if (authorized(http)) reply(http, 200, drivers::listJson()); });
   http.on("/api/drivers/readings", HTTP_GET, [&http]() { if (authorized(http)) reply(http, 200, drivers::readingsJson()); });
   http.on(UriBraces("/api/drivers/{}"), HTTP_PUT, [&http]() {

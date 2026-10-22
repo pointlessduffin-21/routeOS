@@ -2,6 +2,8 @@
 // routeOS Core: what Termz talks to when it checks a board and installs packages.
 //
 //   GET    /api/capabilities          public, read-only: chip, flash, PSRAM, memory, pins, modules
+//   GET    /api/system                token: Wi-Fi, memory, uptime, firmware size
+//   POST   /api/reboot                token: restart the device
 //   GET    /api/drivers               token: installed driver specs
 //   GET    /api/drivers/readings      token: latest value of every driver
 //   PUT    /api/drivers/{id}          token: install or replace a driver (validated here, never trusted)

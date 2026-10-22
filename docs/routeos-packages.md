@@ -146,6 +146,8 @@ pins, `interval_ms`, `samples`, `pull`, `invert` and I2C `address`. Everything e
 | Route | Auth | Purpose |
 | --- | --- | --- |
 | `GET /api/capabilities` | none | The report above. |
+| `GET /api/system` | Bearer token | Live Wi-Fi (SSID, signal, address, MAC), memory in bytes, firmware size and free update space, uptime, last reset. |
+| `POST /api/reboot` | Bearer token | Restart the device after replying. |
 | `GET /api/drivers` | Bearer token | Installed driver specs. |
 | `GET /api/drivers/readings` | Bearer token | Latest value, quality (`good`, `bad`, `pending`), age and error count per driver. |
 | `PUT /api/drivers/{id}` | Bearer token | Install or replace a driver. The body's `id` must match the path. |
