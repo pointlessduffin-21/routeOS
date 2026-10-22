@@ -27,7 +27,7 @@ std::atomic<bool> inputReady{false};
 static StaticQueue_t inputStruct,keyStruct;
 alignas(4) static uint8_t inputStorage[16*sizeof(rvdp::Input)];
 alignas(4) static uint8_t keyStorage[32*sizeof(rvdp::KeyInput)];
-static WebServer http(80);
+static routeos::Server http(80);      // a WebServer that survives half-sent and stalled requests
 static WebSocketsServer ws(81);
 static int viewer=-1;
 static bool helloReceived=false,granted=false;

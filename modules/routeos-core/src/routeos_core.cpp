@@ -11,8 +11,15 @@
 #include <esp_heap_caps.h>
 #include <esp_ota_ops.h>
 #include <esp_system.h>
+#include <lwip/sockets.h>
+
+extern "C" const char routeos_image_tag[];       // stamped into the image by ROUTEOS_IMAGE(); linking fails without it
 
 namespace routeos {
+
+// Holding the marker here, in code every routeOS firmware runs, keeps the linker from discarding it
+// whatever else in the image turns out to be unreachable.
+static const char* volatile gImageTag = routeos_image_tag;
 
 static const char* gFirmwareName = "routeos";
 static const char* gFirmwareVersion = "0";
@@ -175,6 +182,31 @@ static void rebootTask(void*) {
   ESP.restart();
 }
 
+// ---- A web server that does not let one odd client stop the device (see Server in routeos_core.h) ----
+static constexpr uint32_t REQUEST_LIMIT_MS = 30000;   // far longer than any honest request takes
+static volatile uint32_t gServing = 0;                // millis() when the current handleClient() began; 0 when idle
+static Server* gServer = nullptr;
+
+void Server::handleClient() {
+  static_cast<Stream&>(_currentClient).setTimeout(1000);     // the library re-arms 5 s after each request
+  gServer = this;
+  gServing = millis() | 1;
+  WebServer::handleClient();
+  gServing = 0;
+}
+
+static void requestWatchdog(void*) {
+  for (;;) {
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    uint32_t since = gServing;
+    if (since && gServer && millis() - since > REQUEST_LIMIT_MS) {
+      int fd = gServer->currentFd();
+      log('W', "a web request has been stuck for %u s; closing its connection", (unsigned)(REQUEST_LIMIT_MS / 1000));
+      if (fd >= 0) lwip_shutdown(fd, SHUT_RDWR);        // the library's readers give up when the socket dies
+    }
+  }
+}
+
 namespace internal {
 
 void reply(WebServer& http, int code, const String& body) {
@@ -236,6 +268,7 @@ void attach(WebServer& http) {
   });
   wifi::attach(http);
   ota::attach(http);
+  xTaskCreate(requestWatchdog, "ros-http", 2048, nullptr, 1, nullptr);
   http.on("/api/drivers", HTTP_GET, [&http]() { if (authorized(http)) reply(http, 200, drivers::listJson()); });
   http.on("/api/drivers/readings", HTTP_GET, [&http]() { if (authorized(http)) reply(http, 200, drivers::readingsJson()); });
   http.on(UriBraces("/api/drivers/{}"), HTTP_PUT, [&http]() {

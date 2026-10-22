@@ -42,6 +42,18 @@ struct Module {
   const char* version;   // e.g. "1.1"
 };
 
+// A WebServer that survives two weak spots of the Arduino library, which any machine on the network could use to
+// make a board unreachable: (1) after serving a request the library leaves a 5 s read timeout on its client object,
+// and its readers busy-wait for that long, which is exactly the task watchdog's limit, so half a request line was
+// enough to reboot the board; (2) its multipart reader waits for ever on a stalled client. This resets the timeout to
+// 1 s before each request and closes the connection of any request stuck for 30 s. Use it in place of WebServer.
+class Server : public WebServer {
+ public:
+  explicit Server(int port = 80) : WebServer(port) {}
+  void handleClient() override;
+  int currentFd() { return _currentClient.fd(); }
+};
+
 // Call once from setup(). `modules` must outlive the program (use a static array).
 void begin(const char* firmwareName, const char* firmwareVersion, const Module* modules, size_t count, bool allowManage);
 
