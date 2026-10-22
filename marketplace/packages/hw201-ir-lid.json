@@ -47,7 +47,7 @@
                    "tested_on":  [
 
                                  ],
-                   "notes":  "Not yet verified on hardware."
+                   "notes":  "Install, sampling and removal run on the lab ESP32-D0WD-V3 (2026-10-23) with no sensor connected. Not yet verified with a real HW-201."
                },
     "datasheet":  null
 }

@@ -46,7 +46,7 @@
                    "tested_on":  [
 
                                  ],
-                   "notes":  "Not yet verified on hardware."
+                   "notes":  "Install, sampling and removal run on the lab ESP32-D0WD-V3 (2026-10-23). With no sensor connected, no echo is reported as a bad reading, as intended. Not yet verified with a real HC-SR04."
                },
     "datasheet":  "https://cdn.sparkfun.com/datasheets/Sensors/Proximity/HCSR04.pdf"
 }

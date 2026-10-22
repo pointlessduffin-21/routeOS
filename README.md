@@ -18,8 +18,8 @@ flash, PSRAM and free memory, shows which [packages](docs/routeos-packages.md) f
 and installs sensor drivers and plugins over the network without reflashing. The catalog
 is in [`marketplace/packages/`](marketplace/packages); RVDP and Tailscale are listed as
 modules. Tailscale needs a board with PSRAM, so it is not available on the 4 MB lab
-ESP32. The Core is compiled and tested against a simulated device; it has not yet been
-run on a physical board.
+ESP32. The Core and the install flow have run on that lab board (see the status in the
+packages guide); no real sensor has been connected to it yet.
 
 <p align="center">
   <img src="docs/screenshots/orbit-calculator-native.png" alt="iShareScreen Liquid Glass showing the Orbit calculator running on a physical ESP32" width="100%">

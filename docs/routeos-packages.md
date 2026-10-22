@@ -5,11 +5,19 @@ Termz asks a board what it is, judges a catalog of packages against that answer,
 and installs the ones that fit. This page is the reference for the package
 format, the device API behind it, and what is and is not checked.
 
-**Status.** The package format, the Termz catalog and install flow, and the
-Core firmware compile and are tested against a *simulated* device
-(`cubeterm/tests/fake_routeos.py`). The Core firmware has **not yet been run on a
-physical board**, so every catalog entry says "Not yet verified on hardware"
-until someone does that and records the board in its `status.tested_on`.
+**Status.** On 2026-10-23 the Core firmware ran on the lab board (ESP32-D0WD-V3
+rev 3, 4 MB flash, no PSRAM). Verified there: the public report, token
+authentication (missing, wrong and altered tokens refused), refusal of nine kinds
+of invalid driver, install and replace of one driver of each type, a pin-conflict
+refusal, correct "bad" readings with nothing connected, removal, persistence of
+the drivers and the token across a reset, and the whole Termz flow (Modules panel,
+install, live reading, removal) in a real browser. About 1.2 KB of heap per
+driver was measured.
+
+**Not verified:** any real sensor. Nothing was wired to the board, so no catalog
+driver lists a board in `status.tested_on`; that field is for someone who has run
+the actual part. Also not tested: eight drivers at once, a long soak, and the
+Tailscale module (no image exists).
 
 ## Three kinds of package
 
@@ -126,8 +134,7 @@ Every driver has `interval_ms` (1,000 to 3,600,000, default 10,000) and a
 
 Limits on the device: **8 drivers**, **380 bytes** of JSON each, and no two
 drivers may claim the same GPIO (two I2C drivers share the bus). Drivers are saved
-to flash (NVS) and reloaded at boot; that path has been compiled but not yet
-exercised on a board. The classic ESP32 pin map is defined;
+to flash (NVS) and reloaded at boot (checked on the lab board). The classic ESP32 pin map is defined;
 other chips report `drivers.supported: false` until theirs is added.
 
 When a technician installs a catalog driver, Termz lets them change only the
