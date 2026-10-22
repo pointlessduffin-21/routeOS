@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>routeOS Virtual HMI</title>
+<style>
+body{background:#101a19;color:#e5eee9;font:16px system-ui;margin:0;padding:24px;max-width:900px;margin:auto}
+h1{font-size:24px}canvas{display:block;width:100%;height:auto;image-rendering:pixelated;background:#000;touch-action:none;border:1px solid #45665c}
+button,label,input{font:inherit}button{padding:8px 16px;margin:8px 8px 8px 0;background:#bce4b4;border:0;border-radius:6px}
+input[type=url]{box-sizing:border-box;width:100%;padding:10px;margin:12px 0}p{color:#b4ccc1}#status{min-height:24px}
+</style>
+<h1>routeOS · Virtual HMI</h1><p>Development LAN display · RVDP 1.0</p>
+<input id="endpoint" type="url" aria-label="Display WebSocket address">
+<label><input type="checkbox" id="control"> Request pointer + keyboard control</label><br>
+<button id="connect">Connect</button><button id="refresh">Refresh screen</button>
+<div id="status" role="status">Disconnected</div>
+<canvas id="screen" tabindex="0" width="240" height="135" aria-label="Remote device display. Click to focus, then type. Enter calculates, Tab changes page."></canvas>
+<p>Click the screen to type. <b>Enter</b> calculates · <b>Tab</b> changes page · <b>Esc</b> returns to the calculator.</p>
+<p id="metrics">Waiting for a complete screen.</p>
+<script src="/wire.js"></script><script src="/viewer.js"></script>
+</html>

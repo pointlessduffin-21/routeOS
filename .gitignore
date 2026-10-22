@@ -48,6 +48,8 @@ mosquitto-logs/
 # Secrets / env
 .env
 .env.local
+virtual-hmi/include/wifi_secrets.h
+virtual-hmi/src/eez_generated/.eez-project-build
 *.env
 
 # Desktop app build artifacts

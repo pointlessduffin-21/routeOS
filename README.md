@@ -1,5 +1,26 @@
 # routeOS
 
+The isolated [Virtual HMI prototype](virtual-hmi/README.md) runs an EEZ Studio
+LVGL 8.4 export headlessly and streams it over RVDP to a browser or iShareScreen.
+Its firmware lives outside production `src/`; see [implementation results](docs/virtual-hmi.md).
+
+The Orbit demo includes a 20-button calculator, reusable history, and a scratchpad
+with on-screen and laptop keyboard input. It uses negotiated RVDP 1.1 keyboard
+support while keeping RVDP 1.0 pointer compatibility. Open the layout in
+[EEZ Studio](virtual-hmi/eez/routeos-hmi.eez-project); build and viewer instructions
+are in the [Virtual HMI guide](virtual-hmi/README.md).
+
+<p align="center">
+  <img src="docs/screenshots/orbit-calculator-native.png" alt="iShareScreen Liquid Glass showing the Orbit calculator running on a physical ESP32" width="100%">
+</p>
+<p align="center">
+  <img src="docs/screenshots/orbit-history-browser.png" alt="Browser viewer showing the ESP32 calculation history" width="49%">
+  <img src="docs/screenshots/orbit-notes-browser.png" alt="Browser viewer showing the ESP32 scratchpad and on-screen QWERTY keyboard" width="49%">
+</p>
+
+*Actual ESP32-rendered pixels. The native session was captured through Qt's
+offscreen platform; the browser captures show the live hardware viewer.*
+
 **routeOS** is the embedded operating system for EcoRoute smart bin nodes — running on the ESP32-WROOM microcontroller and managing every aspect of the device: sensor I/O, WiFi/MQTT/BLE connectivity, captive portal provisioning, and persistent configuration.
 
 It is architecturally comparable to Apple's **bridgeOS** — a dedicated OS running on a dedicated chip inside a larger system, handling specific I/O and communication functions the host never touches directly.
