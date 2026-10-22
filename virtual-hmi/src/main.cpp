@@ -82,7 +82,10 @@ void loop() {
       rectCount=0;full=true;lv_obj_invalidate(lv_scr_act());lv_refr_now(display);
     } else hmi::refresh=true;
   }
-  lv_timer_handler();
+  // Preserve LVGL's dirty regions until the previous batch has drained.
+  // Rendering into a full queue can cancel a snapshot before FRAME_END reaches
+  // the viewer, repeatedly restarting the initial-screen handshake.
+  if(uxQueueMessagesWaiting(hmi::outgoing)==0) lv_timer_handler();
   hmi::uiMicros=micros()-start;hmi::uiStack=uxTaskGetStackHighWaterMark(nullptr);
   delay(5);
 }

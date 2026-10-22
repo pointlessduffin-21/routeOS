@@ -18,6 +18,7 @@
       if(a[0]!==82||a[1]!==86||a[2]!==68||a[3]!==80||a[4]!==1||a[5]>1||a[7]||d.getUint32(12)!==a.length-16)throw Error('Invalid RVDP header');
       const seq=d.getUint32(8),type=a[6],n=a.length-16;
       if((this.last===null&&seq!==0)||(this.last!==null&&seq!==((this.last+1)>>>0)))throw Error('Stale sequence');this.last=seq;
+      if(type===10){if(n<2||n>130)throw Error('Invalid device error');const error=Error(new TextDecoder().decode(a.subarray(18)));error.code=d.getUint16(16);throw error;}
       if(type===2){
         if(this.width||n!==14)throw Error('Invalid display info');
         const w=d.getUint16(16),h=d.getUint16(18),features=d.getUint32(26);
@@ -33,7 +34,9 @@
         const f=d.getUint32(16),x=d.getUint16(20),y=d.getUint16(22),w=d.getUint16(24),h=d.getUint16(26),length=d.getUint32(29);
         if(!w||!h||x+w>this.width||y+h>this.height||a[28]!==1||length!==w*h*2||length>16384||n!==17+length)throw Error('Invalid rectangle');
         if(this.lastFrame!==null&&(!((f-this.lastFrame)>>>0)||((f-this.lastFrame)>>>0)>=0x80000000))throw Error('Stale frame');
-        if(this.frame!==null&&this.frame!==f){this.resync();return 'resync';}
+        // Keep the first tile of a replacement snapshot. Discarding it and
+        // requesting another repaint can create an endless resync cycle.
+        if(this.frame!==null&&this.frame!==f)this.resync();
         if(this.frame===null){this.frame=f;this.staged=this.pixels.slice();this.coverage=new Uint8Array(this.width*this.height);}
         if(++this.count>512)throw Error('Too many rectangles');
         for(let row=0;row<h;row++)for(let col=0;col<w;col++){

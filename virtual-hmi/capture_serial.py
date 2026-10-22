@@ -11,9 +11,11 @@ parser.add_argument('--reset', action='store_true')
 parser.add_argument('--output', type=Path, default=Path('build/hmi-serial.log'))
 args = parser.parse_args()
 args.output.parent.mkdir(parents=True, exist_ok=True)
-with serial.Serial(args.port, 115200, timeout=0.2) as port:
-    port.dtr = False
-    port.rts = False
+port = serial.Serial(port=None, baudrate=115200, timeout=0.2)
+port.dtr = False
+port.rts = False
+port.port = args.port
+with port:
     if args.reset:
         port.rts = True
         time.sleep(0.1)

@@ -56,7 +56,14 @@ static void newGeneration() {
 }
 static void onEvent(uint8_t client,WStype_t type,uint8_t* data,size_t length) {
   if(type==WStype_CONNECTED) {
-    if(viewer>=0 || length!=5 || memcmp(data,"/rvdp",5)) {ws.disconnect(client);return;}
+    if(length!=5 || memcmp(data,"/rvdp",5)) {ws.disconnect(client);return;}
+    if(viewer>=0) {
+      const char message[]="routeOS display is busy. Close the other browser tab or iShareScreen session, then retry.";
+      uint8_t rejection[16+2+sizeof(message)-1];
+      rvdp::header(rejection,rvdp::ERROR,0,2+sizeof(message)-1);
+      rvdp::put16(rejection+16,409);memcpy(rejection+18,message,sizeof(message)-1);
+      ws.sendBIN(client,rejection,sizeof(rejection));ws.disconnect(client);return;
+    }
     viewer=client;helloReceived=false;granted=false;peerMinor=0;tx=rx=0;connectedAt=lastRx=millis();
     ready=false;inputReady=false;inputEpoch.fetch_add(1);epoch.fetch_add(1);xQueueReset(inputs);xQueueReset(keys);return;
   }

@@ -22,6 +22,23 @@ test('Incomplete full snapshots require resync',()=>{
 test('Stale sequence rejected',()=>{
   const d=new W.Display();d.receive(data('display_rgb_row'));assert.throws(()=>d.receive(data('display_rgb_row')));
 });
+
+test('A replacement full snapshot recovers after a missing FRAME_END',()=>{
+  const d=new W.Display();d.receive(data('display_rgb_row'));
+  d.receive(data('rect_rgb_row')); // abandoned frame 1; no end marker
+  const tile=new Uint8Array(data('rect_rgb_row')),tv=new DataView(tile.buffer);
+  tv.setUint32(8,2);tv.setUint32(16,2);
+  assert.equal(d.receive(tile.buffer),null);
+  const end=new Uint8Array(data('frame_end')),ev=new DataView(end.buffer);
+  ev.setUint32(8,3);ev.setUint32(16,2);
+  assert.equal(d.receive(end.buffer),'frame');assert.equal(d.needsFull,false);
+  assert.equal(d.pixels[0],255);
+});
+
+test('Busy error is readable before DISPLAY_INFO',()=>{
+  const payload=new Uint8Array(Buffer.concat([Buffer.from([1,153]),Buffer.from('Display busy: close the other viewer')]));
+  assert.throws(()=>new W.Display().receive(W.packet(10,0,payload).buffer),e=>e.code===409&&e.message.includes('other viewer'));
+});
 test('Random malformed buffers fail cleanly',()=>{
   for(let n=0;n<256;n++){const b=new Uint8Array(n);b.fill(n);assert.throws(()=>new W.Display().receive(b.buffer));}
 });

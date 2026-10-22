@@ -8,7 +8,8 @@ The Orbit demo includes a 20-button calculator, reusable history, and a scratchp
 with on-screen and laptop keyboard input. It uses negotiated RVDP 1.1 keyboard
 support while keeping RVDP 1.0 pointer compatibility. Open the layout in
 [EEZ Studio](virtual-hmi/eez/routeos-hmi.eez-project); build and viewer instructions
-are in the [Virtual HMI guide](virtual-hmi/README.md).
+are in the [Virtual HMI guide](virtual-hmi/README.md). To open either firmware in
+Arduino IDE, see the [Arduino IDE guide](docs/arduino-ide-guide.md).
 
 <p align="center">
   <img src="docs/screenshots/orbit-calculator-native.png" alt="iShareScreen Liquid Glass showing the Orbit calculator running on a physical ESP32" width="100%">

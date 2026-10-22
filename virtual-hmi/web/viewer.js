@@ -11,7 +11,7 @@
   function release(event=3){if(pressed&&display?.granted)pointer(0,0,false,event);pressed=false;if(display?.granted&&display.keyboard)for(const code of heldKeys.values())key(code,false);heldKeys.clear();}
   function pointer(x,y,down,event){const p=new Uint8Array(6),d=new DataView(p.buffer);d.setUint16(0,x);d.setUint16(2,y);p[4]=Number(down);p[5]=event;send(6,p);}
   function connect(){
-    clearTimeout(retry);clearInterval(watchdog);generation++;const current=generation;
+    clearTimeout(retry);clearInterval(watchdog);generation++;const current=generation;let terminalMessage=null;
     if(ws){ws.onclose=null;ws.close();}release();
     sequence=0;display=new RVDP.Display();bytes=frames=0;
     try{const u=new URL($('endpoint').value);if(!['ws:','wss:'].includes(u.protocol)||u.username||u.password||u.search||u.hash||u.pathname!=='/rvdp')throw Error('Use a ws:// or wss:// /rvdp URL');ws=new WebSocket(u);}catch(e){$('status').textContent=e.message;return;}
@@ -26,9 +26,9 @@
         if(event==='resync')send(5,new Uint8Array([1]));
         if(event==='ping')send(9,new Uint8Array(e.data,16));
         $('metrics').textContent=`${frames} complete batches · ${(bytes/1024).toFixed(1)} KiB received`;
-      }catch(error){$('status').textContent=error.message;ws.close(1002);}
+      }catch(error){if(error.code===409)terminalMessage=error.message;$('status').textContent=error.message;ws.close(1002);}
     };
-    ws.onclose=()=>{if(current!==generation)return;clearInterval(watchdog);pressed=false;$('status').textContent='Disconnected · reconnecting…';retry=setTimeout(connect,Math.min(10000,500*2**Math.min(attempt++,5)));};
+    ws.onclose=()=>{if(current!==generation)return;clearInterval(watchdog);pressed=false;if(terminalMessage){$('status').textContent=terminalMessage;return;}$('status').textContent='Disconnected · reconnecting…';retry=setTimeout(connect,Math.min(10000,500*2**Math.min(attempt++,5)));};
     ws.onerror=()=>{$('status').textContent='Connection failed';};
   }
   for(const name of ['pointerdown','pointermove','pointerup','pointercancel'])canvas.addEventListener(name,e=>{
