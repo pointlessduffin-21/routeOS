@@ -2,6 +2,7 @@
 #include <lvgl.h>
 #include "hmi_transport.h"
 #include "ui_bindings.h"
+#include <routeos_core.h>
 #include <esp_heap_caps.h>
 #include <esp_system.h>
 
@@ -17,6 +18,11 @@ static uint16_t rectCount=0;
 static bool damaged=false,full=false;
 static rvdp::Input pointer{0,0,false,0};
 static uint32_t pointerAt=0;
+#ifndef ROUTEOS_MANAGE
+#define ROUTEOS_MANAGE 0
+#endif
+// Compiled-in modules, reported to Termz. RVDP is part of this image; Tailscale is not.
+static const routeos::Module kModules[]={{"core",routeos::CORE_VERSION},{"rvdp","1.1"},{"drivers","1.0.0"}};
 
 static void flush(lv_disp_drv_t* drv,const lv_area_t* area,lv_color_t* colour) {
   // A new session/resync must begin with a complete snapshot. Automatic LVGL
@@ -68,6 +74,7 @@ void setup() {
   lv_disp_drv_init(&driver);driver.hor_res=rvdp::WIDTH;driver.ver_res=rvdp::HEIGHT;driver.draw_buf=&drawBuffer;driver.flush_cb=flush;
   display=lv_disp_drv_register(&driver);
   lv_indev_drv_init(&inputDriver);inputDriver.type=LV_INDEV_TYPE_POINTER;inputDriver.read_cb=readInput;lv_indev_drv_register(&inputDriver);
+  routeos::begin("routeos-orbit-hmi","1.0.0",kModules,sizeof(kModules)/sizeof(kModules[0]),ROUTEOS_MANAGE);
   hmi::startNetwork();demoInit();
   hmi::printMetrics("lvgl-ready");
 }

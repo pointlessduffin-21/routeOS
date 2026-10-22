@@ -1,0 +1,51 @@
+{
+    "schema":  1,
+    "id":  "tmp102-temperature",
+    "kind":  "driver",
+    "name":  "TMP102 temperature (I2C)",
+    "version":  "1.0.0",
+    "category":  "Environmental",
+    "description":  "Reads the 12-bit temperature register of a TMP102 at address 0x48: a signed 16-bit value shifted right by 4, at 0.0625 degC per step.",
+    "tags":  [
+                 "temperature",
+                 "i2c"
+             ],
+    "requires":  {
+                     "chips":  [
+                                   "esp32"
+                               ],
+                     "min_flash_mb":  4,
+                     "modules":  [
+                                     "core\u003e=1.0"
+                                 ]
+                 },
+    "cost":  {
+                 "heap_kb":  1
+             },
+    "install":  {
+                    "method":  "runtime"
+                },
+    "driver":  {
+                   "type":  "i2c_reg",
+                   "address":  72,
+                   "register":  0,
+                   "bytes":  2,
+                   "endian":  "big",
+                   "signed":  true,
+                   "shift":  4,
+                   "interval_ms":  10000,
+                   "signal":  {
+                                  "name":  "temperature_c",
+                                  "unit":  "C",
+                                  "scale":  0.0625,
+                                  "offset":  0
+                              }
+               },
+    "status":  {
+                   "tested_on":  [
+
+                                 ],
+                   "notes":  "Not yet verified on hardware."
+               },
+    "datasheet":  "https://www.ti.com/lit/ds/symlink/tmp102.pdf"
+}

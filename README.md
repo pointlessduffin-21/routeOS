@@ -11,6 +11,16 @@ support while keeping RVDP 1.0 pointer compatibility. Open the layout in
 are in the [Virtual HMI guide](virtual-hmi/README.md). To open either firmware in
 Arduino IDE, see the [Arduino IDE guide](docs/arduino-ide-guide.md).
 
+**Managed from Termz.** The Orbit firmware includes [routeOS Core](modules/routeos-core)
+(`GET /api/capabilities`, plus token-protected driver management in a `--control`
+build). [Termz](https://github.com/pointlessduffin-21/cubeterm) reads the board's chip,
+flash, PSRAM and free memory, shows which [packages](docs/routeos-packages.md) fit it,
+and installs sensor drivers and plugins over the network without reflashing. The catalog
+is in [`marketplace/packages/`](marketplace/packages); RVDP and Tailscale are listed as
+modules. Tailscale needs a board with PSRAM, so it is not available on the 4 MB lab
+ESP32. The Core is compiled and tested against a simulated device; it has not yet been
+run on a physical board.
+
 <p align="center">
   <img src="docs/screenshots/orbit-calculator-native.png" alt="iShareScreen Liquid Glass showing the Orbit calculator running on a physical ESP32" width="100%">
 </p>

@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "id": "smart-bin-kit",
+  "kind": "plugin",
+  "name": "Smart bin kit",
+  "version": "1.0.0",
+  "category": "Kits",
+  "description": "The EcoRoute bin sensors in one install: ultrasonic fill level, IR lid detector and battery voltage, on the same pins as the production firmware.",
+  "tags": ["kit", "ecoroute", "bin"],
+  "requires": { "chips": ["esp32"], "min_flash_mb": 4, "modules": ["core>=1.0"] },
+  "cost": { "heap_kb": 3 },
+  "install": { "method": "runtime" },
+  "includes": ["hcsr04-ultrasonic", "hw201-ir-lid", "battery-adc"],
+  "status": { "tested_on": [], "notes": "A bundle of the three drivers above; it adds no code of its own." }
+}

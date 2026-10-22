@@ -1,0 +1,52 @@
+{
+    "schema":  1,
+    "id":  "hcsr04-ultrasonic",
+    "kind":  "driver",
+    "name":  "HC-SR04 ultrasonic distance",
+    "version":  "1.0.0",
+    "category":  "Distance",
+    "description":  "Fill level or proximity: measures the echo time on the ECHO pin and converts it to centimetres (speed of sound, round trip).",
+    "tags":  [
+                 "ultrasonic",
+                 "distance",
+                 "fill-level",
+                 "gpio"
+             ],
+    "requires":  {
+                     "chips":  [
+                                   "esp32"
+                               ],
+                     "min_flash_mb":  4,
+                     "modules":  [
+                                     "core\u003e=1.0"
+                                 ]
+                 },
+    "cost":  {
+                 "heap_kb":  1
+             },
+    "install":  {
+                    "method":  "runtime"
+                },
+    "driver":  {
+                   "type":  "pulse_echo",
+                   "pins":  {
+                                "trig":  5,
+                                "echo":  18
+                            },
+                   "interval_ms":  10000,
+                   "samples":  5,
+                   "signal":  {
+                                  "name":  "distance_cm",
+                                  "unit":  "cm",
+                                  "scale":  0.01715,
+                                  "offset":  0
+                              }
+               },
+    "status":  {
+                   "tested_on":  [
+
+                                 ],
+                   "notes":  "Not yet verified on hardware."
+               },
+    "datasheet":  "https://cdn.sparkfun.com/datasheets/Sensors/Proximity/HCSR04.pdf"
+}

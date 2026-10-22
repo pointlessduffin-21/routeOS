@@ -133,6 +133,7 @@ Install these additional Library Manager dependencies:
 
 - **lvgl**, exactly **8.4.0**; the EEZ export is not an LVGL 9 project.
 - **WebSockets by Markus Sattler**, exactly **2.7.1**; not ArduinoWebsockets.
+- **ArduinoJson**, **7.x**, as above: routeOS Core uses it for its device report.
 
 Export the interactive HMI sketch:
 
@@ -140,13 +141,18 @@ Export the interactive HMI sketch:
 .venv/Scripts/python.exe tools/export_arduino.py hmi --control
 ```
 
-For a view-only firmware build, omit `--control`. Then open:
+`--control` turns on pointer and keyboard control **and** the routeOS management API
+(`-DROUTEOS_MANAGE=1`), which lets [Termz](routeos-packages.md) install drivers. For
+a view-only firmware build, omit `--control`: the device still reports its hardware
+but refuses every management call. Then open:
 
 ```text
 C:\Users\yeems214\routeOS\build\arduino\routeOS_HMI\routeOS_HMI.ino
 ```
 
-The exporter copies the EEZ-generated C files under `src/eez_generated/`, keeps
+The exporter copies the EEZ-generated C files under `src/eez_generated/` and the
+routeOS Core library (`modules/routeos-core`) under `src/routeos_core/`, rewriting
+its `#include` to match, because the IDE builds only subfolders of `src/`. It keeps
 the custom application bindings separate, embeds the browser assets into
 `src/web_assets.h`, copies `src/lv_conf.h`, and writes the required compiler flags
 to **`build_opt.h`**. ESP32 core 2.0.17 reads that file as compiler options; it is
@@ -203,7 +209,9 @@ variant folders or their duplicate `src/*.ino` copies into one sketch.
 | `web_assets.h` missing | Use the HMI exporter; Arduino does not run PlatformIO's embedding hook. |
 | Font/config errors, blank or wrong colors | Keep `build_opt.h` and exported `lv_conf.h`; use LVGL 8.4.0 and regenerate if the sketch moved. |
 | Sketch too large | Select the target's partition scheme; production uses Huge APP. |
-| Multiple definitions of `setup()` or `loop()` | Keep the exported `.ino` stub; the real definitions already live in `src/main.cpp`. |
+| Multiple definitions of `setup()` or `loop()` | The exported `.ino` *is* the firmware's `main.cpp`. Do not add another file that defines them, and do not combine several variant folders into one sketch. |
+| `routeos_core.h` not found | Use the exporter: it copies the Core library into `src/routeos_core/` and rewrites the include. A hand-copied sketch needs the same. |
+| Termz says the device rejected the token, or management is off | Management exists only in a `--control` build. The token is printed on the serial console at each start (`[core] management token: ...`). |
 
 ## Validation and reference workflow
 
@@ -215,12 +223,14 @@ isolated scratch install that did not touch your IDE settings:
 | Sketch | Board / partition | Result |
 | --- | --- | --- |
 | Production (`routeOS`) | ESP32 Dev Module, Huge APP | Compiles; 1,674,053 bytes flash (53%), 62,812 bytes RAM |
-| Orbit HMI (`routeOS_HMI`, `--control`) | ESP32 Dev Module, default partitions | Compiles; 1,058,425 bytes flash (80%), 104,744 bytes RAM |
+| Orbit HMI (`routeOS_HMI`, `--control`), before routeOS Core | ESP32 Dev Module, default partitions | Compiles; 1,058,425 bytes flash (80%), 104,744 bytes RAM |
+| Orbit HMI (`routeOS_HMI`, `--control`), with routeOS Core | ESP32 Dev Module, default partitions | Compiles; 1,121,661 bytes flash (85%), 109,488 bytes RAM |
 
-The HMI's 104,744-byte RAM figure is identical to the PlatformIO build, which shows
-`build_opt.h` is being applied. These were compile-only checks: the Arduino-built
-images were **not uploaded** to the board. The firmware actually running on the
-ESP32 was built and flashed with PlatformIO.
+Core adds about 63 KB of flash and 4.7 KB of static RAM. At 85% of the default
+1.25 MB app slot there is room for little else on this partition scheme. The HMI's RAM figure matched the PlatformIO build
+before Core was added, which showed `build_opt.h` is being applied. These were
+compile-only checks: the Arduino-built images were **not uploaded** to the board.
+The firmware running on the ESP32 was built and flashed with PlatformIO.
 
 **Windows path length:** the toolchain failed with "The filename or extension is
 too long" when the sketch, board data and build folder sat under a deep path. If

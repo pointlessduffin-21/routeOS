@@ -6,6 +6,7 @@
 #include <esp_heap_caps.h>
 #include "web_assets.h"
 #include "ui_bindings.h"
+#include <routeos_core.h>
 #if __has_include("wifi_secrets.h")
 #include "wifi_secrets.h"
 #endif
@@ -129,11 +130,12 @@ static void network(void*) {
       ESP.getFreeHeap(),ESP.getMinFreeHeap(),heap_caps_get_largest_free_block(MALLOC_CAP_8BIT),ESP.getPsramSize(),uxQueueMessagesWaiting(outgoing),drops.load(),batches.load(),sentBytes.load(),uiMicros.load(),uiStack.load(),networkStack,HMI_ALLOW_CONTROL?"true":"false",state.page,state.expression,state.result,state.historyCount,state.noteLength);
     http.send(200,"application/json",body);
   });
+  routeos::attach(http);
   http.begin();ws.begin();ws.onEvent(onEvent);
   uint32_t metricsAt=0;bool announced=false;
   while(true) {
     http.handleClient();ws.loop();
-    if(WiFi.status()==WL_CONNECTED && !announced) {announced=true;Serial.printf("[hmi] IP=%s URL=http://%s/hmi WS=ws://%s:81/rvdp\n",WiFi.localIP().toString().c_str(),WiFi.localIP().toString().c_str(),WiFi.localIP().toString().c_str());printMetrics("wifi-ready");}
+    if(WiFi.status()==WL_CONNECTED && !announced) {announced=true;routeos::onNetworkUp();Serial.printf("[hmi] IP=%s URL=http://%s/hmi WS=ws://%s:81/rvdp\n",WiFi.localIP().toString().c_str(),WiFi.localIP().toString().c_str(),WiFi.localIP().toString().c_str());printMetrics("wifi-ready");}
     if(WiFi.status()!=WL_CONNECTED) announced=false;
     if(viewer>=0 && ((!helloReceived && millis()-connectedAt>5000) || millis()-lastRx>20000)) ws.disconnect(viewer);
     if(overflow.exchange(false)) newGeneration();

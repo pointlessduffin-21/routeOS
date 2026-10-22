@@ -29,6 +29,13 @@ def export(target, destination, control=False):
                 file.write_text(text.replace('"eez_generated/', '"src/eez_generated/'), encoding='utf-8')
     if target == 'hmi':
         shutil.copy2(ROOT / 'virtual-hmi/include/lv_conf.h', sketch_source / 'lv_conf.h')
+        # The routeOS Core library is a PlatformIO library; the Arduino IDE builds it as part of the sketch.
+        core = destination / 'src' / 'routeos_core'
+        shutil.copytree(ROOT / 'modules/routeos-core/src', core)
+        for file in [*destination.glob('*.cpp'), *destination.glob('*.ino')]:
+            text = file.read_text(encoding='utf-8')
+            if '<routeos_core.h>' in text:
+                file.write_text(text.replace('<routeos_core.h>', '"src/routeos_core/routeos_core.h"'), encoding='utf-8')
         assets = ['#pragma once', '#include <Arduino.h>']
         web = ROOT / 'virtual-hmi/web'
         for name, symbol in [('index.html', 'hmi_html'), ('wire.js', 'hmi_wire_js'),
@@ -44,7 +51,8 @@ def export(target, destination, control=False):
         flags = ['-DLV_CONF_INCLUDE_SIMPLE',
                  f'"-DLV_CONF_PATH={(sketch_source / "lv_conf.h").as_posix()}"',
                  '-DWEBSOCKETS_SERVER_CLIENT_MAX=2', '-DWEBSOCKETS_TCP_TIMEOUT=2000',
-                 '-DHMI_ALLOW_CONTROL=' + str(int(control))]
+                 '-DHMI_ALLOW_CONTROL=' + str(int(control)),
+                 '-DROUTEOS_MANAGE=' + str(int(control))]       # same as the PlatformIO control environment
         (destination / 'build_opt.h').write_text('\n'.join(flags) + '\n', encoding='utf-8')
     return destination / (destination.name + '.ino')
 

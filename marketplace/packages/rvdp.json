@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "id": "rvdp",
+  "kind": "module",
+  "name": "RVDP virtual display",
+  "version": "1.1",
+  "category": "Display",
+  "description": "Streams the device's LVGL screen over WebSocket as the routeOS Virtual Display Protocol, with optional pointer and keyboard control. Viewers: Termz, ShareScreen, any browser.",
+  "tags": ["display", "hmi", "lvgl", "remote"],
+  "requires": { "chips": ["esp32", "esp32s3"], "min_flash_mb": 4, "min_psram_kb": 0, "min_free_heap_kb": 160, "modules": ["core>=1.0"] },
+  "cost": { "heap_kb": 150 },
+  "install": { "method": "firmware" },
+  "status": { "tested_on": ["ESP32-D0WD-V3 rev 3, 4 MB, no PSRAM"], "notes": "Compiled into the Orbit HMI image. Measured on the lab board: about 150 KB of heap (LVGL pool, tile queue, draw strip). Not tested alongside BLE provisioning." }
+}

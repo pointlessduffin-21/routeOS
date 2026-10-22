@@ -1,0 +1,10 @@
+{
+  "name": "routeos-core",
+  "version": "1.0.0",
+  "description": "routeOS Core: device capability report, per-device management token, and a runtime driver engine that Termz uses to install declarative drivers.",
+  "frameworks": "arduino",
+  "platforms": "espressif32",
+  "dependencies": [
+    { "name": "ArduinoJson", "version": "^7.0.0" }
+  ]
+}

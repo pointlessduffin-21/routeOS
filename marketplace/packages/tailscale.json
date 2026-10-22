@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "id": "tailscale",
+  "kind": "module",
+  "name": "Tailscale",
+  "version": "0.1.0",
+  "category": "Network",
+  "description": "Joins the device to your tailnet as its own node (WireGuard, DERP and DISCO) so Termz can reach it from anywhere without a subnet router. Works with Tailscale or Headscale.",
+  "tags": ["network", "vpn", "tailscale", "headscale", "wireguard"],
+  "requires": { "chips": ["esp32", "esp32s3"], "min_flash_mb": 4, "min_psram_kb": 2048, "min_free_heap_kb": 0, "modules": ["core>=1.0"] },
+  "cost": { "heap_kb": 0, "psram_kb": 1024 },
+  "install": { "method": "firmware" },
+  "config": {
+    "fields": {
+      "auth_key": { "type": "secret", "label": "Tailscale auth key", "required": true },
+      "hostname": { "type": "string", "label": "Node name", "required": false },
+      "login_server": { "type": "string", "label": "Headscale URL (leave blank for Tailscale)", "required": false }
+    }
+  },
+  "status": { "tested_on": [], "notes": "Needs PSRAM: the upstream component (Csontikka/esphome-tailscale, built on microlink) says a classic ESP32 without PSRAM is not expected to work. No routeOS image with this module has been built yet and it has not been run on hardware." },
+  "upstream": "https://github.com/Csontikka/esphome-tailscale"
+}

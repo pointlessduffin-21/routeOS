@@ -1,0 +1,53 @@
+{
+    "schema":  1,
+    "id":  "hw201-ir-lid",
+    "kind":  "driver",
+    "name":  "HW-201 IR lid detector",
+    "version":  "1.0.0",
+    "category":  "Presence",
+    "description":  "Digital IR obstacle sensor. The HW-201 pulls OUT low when it sees an object, so the value is inverted: 1 means the lid is closed.",
+    "tags":  [
+                 "ir",
+                 "lid",
+                 "digital",
+                 "gpio"
+             ],
+    "requires":  {
+                     "chips":  [
+                                   "esp32"
+                               ],
+                     "min_flash_mb":  4,
+                     "modules":  [
+                                     "core\u003e=1.0"
+                                 ]
+                 },
+    "cost":  {
+                 "heap_kb":  1
+             },
+    "install":  {
+                    "method":  "runtime"
+                },
+    "driver":  {
+                   "type":  "digital",
+                   "pins":  {
+                                "pin":  4
+                            },
+                   "pull":  "none",
+                   "invert":  true,
+                   "interval_ms":  5000,
+                   "samples":  5,
+                   "signal":  {
+                                  "name":  "lid_closed",
+                                  "unit":  "",
+                                  "scale":  1,
+                                  "offset":  0
+                              }
+               },
+    "status":  {
+                   "tested_on":  [
+
+                                 ],
+                   "notes":  "Not yet verified on hardware."
+               },
+    "datasheet":  null
+}

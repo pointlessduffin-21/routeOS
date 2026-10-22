@@ -1,0 +1,50 @@
+{
+    "schema":  1,
+    "id":  "battery-adc",
+    "kind":  "driver",
+    "name":  "Battery voltage (divider on ADC1)",
+    "version":  "1.0.0",
+    "category":  "Power",
+    "description":  "Reads a battery through a 2 x 100 kOhm divider on an ADC1 pin using the chip\u0027s calibrated millivolt reading, and reports volts (millivolts x 2 / 1000).",
+    "tags":  [
+                 "battery",
+                 "adc",
+                 "power"
+             ],
+    "requires":  {
+                     "chips":  [
+                                   "esp32"
+                               ],
+                     "min_flash_mb":  4,
+                     "modules":  [
+                                     "core\u003e=1.0"
+                                 ]
+                 },
+    "cost":  {
+                 "heap_kb":  1
+             },
+    "install":  {
+                    "method":  "runtime"
+                },
+    "driver":  {
+                   "type":  "adc",
+                   "pins":  {
+                                "pin":  34
+                            },
+                   "interval_ms":  30000,
+                   "samples":  8,
+                   "signal":  {
+                                  "name":  "battery_v",
+                                  "unit":  "V",
+                                  "scale":  0.002,
+                                  "offset":  0
+                              }
+               },
+    "status":  {
+                   "tested_on":  [
+
+                                 ],
+                   "notes":  "Not yet verified on hardware."
+               },
+    "datasheet":  null
+}
