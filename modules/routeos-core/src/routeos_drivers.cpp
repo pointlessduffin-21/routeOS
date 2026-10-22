@@ -1,4 +1,5 @@
 #include "routeos_drivers.h"
+#include "routeos_log.h"
 #include <Preferences.h>
 #include <Wire.h>
 #include <math.h>
@@ -277,15 +278,21 @@ static void samplerTask(void*) {
       if (!due) continue;
       float value = 0;
       bool ok = sampleDriver(local, value);
+      bool lost = false, regained = false;
       lock();
       if (table[i].used && table[i].gen == local.gen) {
         table[i].sampledAt = millis();
         table[i].count++;
+        Quality before = table[i].quality;
         if (ok) { table[i].value = value; table[i].quality = Q_GOOD; }
         else { table[i].quality = Q_BAD; table[i].errors++; }
         table[i].nextAt = millis() + table[i].intervalMs;
+        lost = !ok && before != Q_BAD;                // report changes, not every sample
+        regained = ok && before == Q_BAD;
       }
       unlock();
+      if (lost) log('W', "driver %s: no valid reading", local.id);
+      if (regained) log('I', "driver %s: reading again", local.id);
     }
     vTaskDelay(pdMS_TO_TICKS(100));
   }
@@ -370,11 +377,11 @@ void begin() {
       String body, error;
       serializeJson(item, body);
       String id = item["id"] | "";
-      if (!store(id, body, error, false)) Serial.printf("[core] skipped saved driver '%s': %s\n", id.c_str(), error.c_str());
+      if (!store(id, body, error, false)) log('W', "skipped saved driver '%s': %s", id.c_str(), error.c_str());
     }
   }
   xTaskCreatePinnedToCore(samplerTask, "ros-drivers", 4096, nullptr, 1, nullptr, 1);
-  Serial.printf("[core] drivers ready: %u installed\n", (unsigned)count());
+  log('I', "drivers ready: %u installed", (unsigned)count());
 }
 
 void describePins(JsonObject out) {
@@ -426,7 +433,11 @@ String readingsJson() {
   return out;
 }
 
-bool install(const String& id, const String& body, String& error) { return store(id, body, error, true); }
+bool install(const String& id, const String& body, String& error) {
+  bool ok = store(id, body, error, true);
+  if (ok) log('I', "driver %s installed", id.c_str());
+  return ok;
+}
 
 bool remove(const String& id, String& error) {
   bool found = false;
@@ -437,6 +448,7 @@ bool remove(const String& id, String& error) {
   if (found) persist();
   unlock();
   if (!found) error = "No such driver";
+  else log('I', "driver %s removed", id.c_str());
   return found;
 }
 

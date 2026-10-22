@@ -63,13 +63,16 @@ static void onEvent(uint8_t client,WStype_t type,uint8_t* data,size_t length) {
       uint8_t rejection[16+2+sizeof(message)-1];
       rvdp::header(rejection,rvdp::ERROR,0,2+sizeof(message)-1);
       rvdp::put16(rejection+16,409);memcpy(rejection+18,message,sizeof(message)-1);
+      routeos::log('W',"display viewer turned away: another viewer is connected");
       ws.sendBIN(client,rejection,sizeof(rejection));ws.disconnect(client);return;
     }
+    routeos::log('I',"display viewer connected");
     viewer=client;helloReceived=false;granted=false;peerMinor=0;tx=rx=0;connectedAt=lastRx=millis();
     ready=false;inputReady=false;inputEpoch.fetch_add(1);epoch.fetch_add(1);xQueueReset(inputs);xQueueReset(keys);return;
   }
   if(client!=viewer) return;
   if(type==WStype_DISCONNECTED) {
+    routeos::log('I',"display viewer disconnected");
     ready=false;inputReady=false;inputEpoch.fetch_add(1);epoch.fetch_add(1);viewer=-1;helloReceived=granted=false;xQueueReset(inputs);xQueueReset(keys);return;
   }
   if(type!=WStype_BIN) {
@@ -113,8 +116,8 @@ static void onEvent(uint8_t client,WStype_t type,uint8_t* data,size_t length) {
 static void network(void*) {
   WiFi.persistent(false);
   WiFi.mode(WIFI_STA);
-  if(strlen(HMI_WIFI_SSID)) WiFi.begin(HMI_WIFI_SSID,HMI_WIFI_PASSWORD);
-  else {
+  // A network saved through the management API is tried first, then the one built into this firmware.
+  if(!routeos::wifiBegin(HMI_WIFI_SSID,HMI_WIFI_PASSWORD)) {
     char password[17];snprintf(password,sizeof(password),"%08x%08x",esp_random(),esp_random());
     String ssid=String("routeOS-HMI-")+String(uint32_t(ESP.getEfuseMac()),HEX);
     WiFi.mode(WIFI_AP);WiFi.softAP(ssid.c_str(),password);

@@ -1,5 +1,9 @@
 #include "routeos_core.h"
 #include "routeos_drivers.h"
+#include "routeos_internal.h"
+#include "routeos_log.h"
+#include "routeos_ota.h"
+#include "routeos_wifi.h"
 #include <ArduinoJson.h>
 #include <Preferences.h>
 #include <WiFi.h>
@@ -54,6 +58,9 @@ void begin(const char* firmwareName, const char* firmwareVersion, const Module* 
   gModules = modules;
   gModuleCount = count;
   gManage = allowManage;
+  log('I', "boot: %s %s (core %s), reset: %s, free memory %u KB", firmwareName, firmwareVersion, CORE_VERSION, resetReason(),
+      (unsigned)(ESP.getFreeHeap() / 1024));
+  ota::begin();           // a freshly installed image is on trial; this may hand control back to the old one
   drivers::begin();
   if (gManage) {
     Preferences p;
@@ -65,8 +72,9 @@ void begin(const char* firmwareName, const char* firmwareVersion, const Module* 
 }
 
 void onNetworkUp() {
+  ota::networkUp();
   if (!gManage || gToken[0]) {
-    if (gManage) Serial.printf("[core] management token: %s\n", gToken);
+    if (gManage) Serial.printf("[core] management token: %s\n", gToken);     // serial only, never the log
     return;
   }
   // The radio is on now, so esp_random() is a true random source.
@@ -123,6 +131,12 @@ static String capabilities() {
   JsonObject mg = doc["manage"].to<JsonObject>();
   mg["enabled"] = gManage;
   mg["token_set"] = gToken[0] != 0;
+  // What a console may offer for this board. Each is a token-protected route group.
+  JsonArray features = doc["features"].to<JsonArray>();
+  features.add("system");
+  features.add("logs");
+  features.add("wifi");
+  if (esp_ota_get_next_update_partition(nullptr)) features.add("ota");
   doc["uptime_s"] = millis() / 1000;
   doc["reset_reason"] = resetReason();
   String out;
@@ -161,11 +175,14 @@ static void rebootTask(void*) {
   ESP.restart();
 }
 
-static void reply(WebServer& http, int code, const String& body) {
+namespace internal {
+
+void reply(WebServer& http, int code, const String& body) {
   http.sendHeader("Cache-Control", "no-store");
   http.send(code, "application/json", body);
 }
-static void fail(WebServer& http, int code, const String& message) {
+
+void fail(WebServer& http, int code, const String& message) {
   JsonDocument doc;
   doc["error"] = message;
   String out;
@@ -173,14 +190,19 @@ static void fail(WebServer& http, int code, const String& message) {
   reply(http, code, out);
 }
 
-static bool authorized(WebServer& http) {
-  if (!gManage) { fail(http, 403, "Management is disabled in this firmware build."); return false; }
-  if (!gToken[0]) { fail(http, 503, "The management token is not ready yet. Try again in a moment."); return false; }
+bool tokenValid(WebServer& http) {
+  if (!gManage || !gToken[0]) return false;
   String got = http.header("Authorization");
   String want = String("Bearer ") + gToken;
   uint8_t diff = got.length() == want.length() ? 0 : 1;
   for (size_t i = 0; i < got.length() && i < want.length(); i++) diff |= got[i] ^ want[i];
-  if (diff) {
+  return diff == 0;
+}
+
+bool authorized(WebServer& http) {
+  if (!gManage) { fail(http, 403, "Management is disabled in this firmware build."); return false; }
+  if (!gToken[0]) { fail(http, 503, "The management token is not ready yet. Try again in a moment."); return false; }
+  if (!tokenValid(http)) {
     http.sendHeader("WWW-Authenticate", "Bearer");
     fail(http, 401, "The management token was rejected.");
     return false;
@@ -188,16 +210,32 @@ static bool authorized(WebServer& http) {
   return true;
 }
 
+void rebootSoon() { xTaskCreate(rebootTask, "ros-reboot", 2048, nullptr, 1, nullptr); }
+const char* firmwareName() { return gFirmwareName; }
+const char* firmwareVersion() { return gFirmwareVersion; }
+const char* resetReasonText() { return resetReason(); }
+
+}  // namespace internal
+
 void attach(WebServer& http) {
-  static const char* headers[] = {"Authorization"};
-  http.collectHeaders(headers, 1);
+  using namespace internal;
+  static const char* headers[] = {"Authorization", "X-Ota-Offset"};
+  http.collectHeaders(headers, 2);
   http.on("/api/capabilities", HTTP_GET, [&http]() { reply(http, 200, capabilities()); });
   http.on("/api/system", HTTP_GET, [&http]() { if (authorized(http)) reply(http, 200, systemInfo()); });
+  http.on("/api/logs", HTTP_GET, [&http]() {
+    if (!authorized(http)) return;
+    long since = http.arg("since").toInt();
+    reply(http, 200, logsJson(since > 0 ? (uint32_t)since : 0));
+  });
   http.on("/api/reboot", HTTP_POST, [&http]() {
     if (!authorized(http)) return;
+    log('I', "restart requested through the management API");
     reply(http, 200, "{\"ok\":true,\"rebooting\":true}");
-    xTaskCreate(rebootTask, "ros-reboot", 2048, nullptr, 1, nullptr);
+    rebootSoon();
   });
+  wifi::attach(http);
+  ota::attach(http);
   http.on("/api/drivers", HTTP_GET, [&http]() { if (authorized(http)) reply(http, 200, drivers::listJson()); });
   http.on("/api/drivers/readings", HTTP_GET, [&http]() { if (authorized(http)) reply(http, 200, drivers::readingsJson()); });
   http.on(UriBraces("/api/drivers/{}"), HTTP_PUT, [&http]() {

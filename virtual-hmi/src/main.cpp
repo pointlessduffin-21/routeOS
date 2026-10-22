@@ -21,6 +21,15 @@ static uint32_t pointerAt=0;
 #ifndef ROUTEOS_MANAGE
 #define ROUTEOS_MANAGE 0
 #endif
+// Name and version of this firmware. A build can override them (-DFW_VERSION=\"1.2.0\").
+#ifndef FW_NAME
+#define FW_NAME "routeos-orbit-hmi"
+#endif
+#ifndef FW_VERSION
+#define FW_VERSION "1.1.0"
+#endif
+// Marks this image as routeOS firmware, so Termz and the device's updater will accept it.
+ROUTEOS_IMAGE(FW_NAME, FW_VERSION);
 // Compiled-in modules, reported to Termz. RVDP is part of this image; Tailscale is not.
 static const routeos::Module kModules[]={{"core",routeos::CORE_VERSION},{"rvdp","1.1"},{"drivers","1.0.0"}};
 
@@ -74,7 +83,7 @@ void setup() {
   lv_disp_drv_init(&driver);driver.hor_res=rvdp::WIDTH;driver.ver_res=rvdp::HEIGHT;driver.draw_buf=&drawBuffer;driver.flush_cb=flush;
   display=lv_disp_drv_register(&driver);
   lv_indev_drv_init(&inputDriver);inputDriver.type=LV_INDEV_TYPE_POINTER;inputDriver.read_cb=readInput;lv_indev_drv_register(&inputDriver);
-  routeos::begin("routeos-orbit-hmi","1.0.0",kModules,sizeof(kModules)/sizeof(kModules[0]),ROUTEOS_MANAGE);
+  routeos::begin(FW_NAME,FW_VERSION,kModules,sizeof(kModules)/sizeof(kModules[0]),ROUTEOS_MANAGE);
   hmi::startNetwork();demoInit();
   hmi::printMetrics("lvgl-ready");
 }
