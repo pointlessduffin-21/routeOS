@@ -100,17 +100,16 @@ The exported layout is:
 
 ```text
 routeOS/
-  routeOS.ino       # Small entry file; do not add another setup() or loop()
-  src/
-    main.cpp       # Actual firmware entry and application logic
-    config_manager.cpp/.h
-    ble_provisioning.cpp/.h
-    ...            # Remaining production .cpp/.h files
+  routeOS.ino       # This is the firmware's main.cpp (setup() and loop())
+  config_manager.cpp/.h   # Each of these appears as its own tab
+  ble_provisioning.cpp/.h
+  ...                     # Remaining production .cpp/.h files
 ```
 
-Arduino compiles C/C++ recursively under `src/`; it does not necessarily show
-those files as sketch tabs. Use **Sketch > Show Sketch Folder** to inspect them
-and a code editor to edit them. Keep this structure intact.
+Top-level files show as tabs in the IDE, so you can read and edit the real code
+directly. For the HMI, EEZ's generated C files live in `src/eez_generated/`
+because Arduino only compiles subfolders under `src/`. They are not tabs; do not
+hand-edit them (regenerate from EEZ Studio instead).
 
 Install through **Library Manager**:
 

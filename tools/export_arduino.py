@@ -12,12 +12,21 @@ def export(target, destination, control=False):
     # Refuse reuse: exporting again must not overwrite edits made in Arduino IDE.
     destination.mkdir(parents=True, exist_ok=False)
     source = ROOT / ('src' if target == 'production' else 'virtual-hmi/src')
-    sketch_source = destination / 'src'
-    shutil.copytree(source, sketch_source,
+    # Arduino IDE shows only top-level files as tabs, so keep sources flat and
+    # make main.cpp the visible .ino. Subfolders (eez_generated/) stay as-is.
+    sketch_source = destination
+    shutil.copytree(source, destination, dirs_exist_ok=True,
                     ignore=shutil.ignore_patterns('*.bak', '__pycache__', '.eez-project-build'))
-    (destination / (destination.name + '.ino')).write_text(
-        '// setup() and loop() are in src/main.cpp. Do not duplicate them here.\n',
-        encoding='utf-8')
+    (destination / 'main.cpp').rename(destination / (destination.name + '.ino'))
+    # Arduino compiles subfolders only under src/, so EEZ's generated C must live there.
+    generated = destination / 'eez_generated'
+    if generated.exists():
+        (destination / 'src').mkdir(exist_ok=True)
+        generated.rename(destination / 'src' / 'eez_generated')
+        for file in destination.glob('*.cpp'):
+            text = file.read_text(encoding='utf-8')
+            if '"eez_generated/' in text:
+                file.write_text(text.replace('"eez_generated/', '"src/eez_generated/'), encoding='utf-8')
     if target == 'hmi':
         shutil.copy2(ROOT / 'virtual-hmi/include/lv_conf.h', sketch_source / 'lv_conf.h')
         assets = ['#pragma once', '#include <Arduino.h>']
