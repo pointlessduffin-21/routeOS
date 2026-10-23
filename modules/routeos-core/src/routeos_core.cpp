@@ -21,6 +21,8 @@ namespace routeos {
 // whatever else in the image turns out to be unreachable.
 static const char* volatile gImageTag = routeos_image_tag;
 
+static void watchTask(void*);        // housekeeping, defined with the web server watchdog below
+
 static const char* gFirmwareName = "routeos";
 static const char* gFirmwareVersion = "0";
 static const Module* gModules = nullptr;
@@ -67,8 +69,19 @@ void begin(const char* firmwareName, const char* firmwareVersion, const Module* 
   gManage = allowManage;
   log('I', "boot: %s %s (core %s), reset: %s, free memory %u KB", firmwareName, firmwareVersion, CORE_VERSION, resetReason(),
       (unsigned)(ESP.getFreeHeap() / 1024));
+  {
+    Preferences p;
+    p.begin("rossys", false);
+    String why = p.getString("why", "");
+    if (why.length()) {
+      p.remove("why");
+      log('W', "the last run was restarted by the self-check: %s", why.c_str());
+    }
+    p.end();
+  }
   ota::begin();           // a freshly installed image is on trial; this may hand control back to the old one
   drivers::begin();
+  xTaskCreate(watchTask, "ros-watch", 3072, nullptr, 1, nullptr);     // made now, before the network fragments the heap
   if (gManage) {
     Preferences p;
     p.begin("roscore", true);
@@ -195,15 +208,59 @@ void Server::handleClient() {
   gServing = 0;
 }
 
-static void requestWatchdog(void*) {
+static void requestWatch() {
+  uint32_t since = gServing;
+  if (since && gServer && millis() - since > REQUEST_LIMIT_MS) {
+    int fd = gServer->currentFd();
+    log('W', "a web request has been stuck for %u s; closing its connection", (unsigned)(REQUEST_LIMIT_MS / 1000));
+    if (fd >= 0) lwip_shutdown(fd, SHUT_RDWR);          // the library's readers give up when the socket dies
+  }
+}
+
+// ---- Self-check: restart rather than sit on a dead network ----
+// Seen on the lab board after four hours: 63 KB free in total but the largest free block only 2 KB. Wi-Fi and TCP could not
+// get a packet buffer, nothing answered (not even ping), and nothing ever recovered. Only a restart gets out of that, and
+// a device nobody is standing next to has to do it for itself. The test is on blocks the network can use (8-bit DRAM).
+static constexpr uint32_t LOW_BLOCK_BYTES = 3072;
+static constexpr uint32_t LOW_FREE_BYTES = 6144;
+static constexpr uint32_t LOW_SPAN_MS = 10000;          // transient dips while a display opens last a second or two
+static constexpr uint32_t CHECK_AFTER_MS = 20000;       // not while the network and display are still starting
+
+static void memoryWatch() {
+  static uint32_t lowSince = 0;
+  if (millis() < CHECK_AFTER_MS) return;
+  size_t largest = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
+  size_t freeBytes = heap_caps_get_free_size(MALLOC_CAP_8BIT);
+  if (largest >= LOW_BLOCK_BYTES && freeBytes >= LOW_FREE_BYTES) {
+    lowSince = 0;
+    return;
+  }
+  if (!lowSince) {
+    lowSince = millis() | 1;
+    log('W', "memory is nearly exhausted: largest block %u B, %u B free", (unsigned)largest, (unsigned)freeBytes);
+    return;
+  }
+  if (millis() - lowSince < LOW_SPAN_MS) return;
+  char why[88];
+  snprintf(why, sizeof(why), "largest block %u B, %u KB free, up %u min", (unsigned)largest, (unsigned)(freeBytes / 1024),
+           (unsigned)(millis() / 60000));
+  log('E', "memory exhausted for %u s (%s): restarting", (unsigned)(LOW_SPAN_MS / 1000), why);
+  Preferences p;
+  p.begin("rossys", false);
+  p.putString("why", why);
+  p.end();
+  delay(300);
+  ESP.restart();
+}
+
+// One housekeeping task for everything that has to keep watching while the web server is busy or stuck.
+static void watchTask(void*) {
   for (;;) {
-    vTaskDelay(pdMS_TO_TICKS(1000));
-    uint32_t since = gServing;
-    if (since && gServer && millis() - since > REQUEST_LIMIT_MS) {
-      int fd = gServer->currentFd();
-      log('W', "a web request has been stuck for %u s; closing its connection", (unsigned)(REQUEST_LIMIT_MS / 1000));
-      if (fd >= 0) lwip_shutdown(fd, SHUT_RDWR);        // the library's readers give up when the socket dies
-    }
+    vTaskDelay(pdMS_TO_TICKS(500));
+    requestWatch();
+    ota::watch();
+    wifi::watch();
+    memoryWatch();
   }
 }
 
@@ -268,7 +325,6 @@ void attach(WebServer& http) {
   });
   wifi::attach(http);
   ota::attach(http);
-  xTaskCreate(requestWatchdog, "ros-http", 2048, nullptr, 1, nullptr);
   http.on("/api/drivers", HTTP_GET, [&http]() { if (authorized(http)) reply(http, 200, drivers::listJson()); });
   http.on("/api/drivers/readings", HTTP_GET, [&http]() { if (authorized(http)) reply(http, 200, drivers::readingsJson()); });
   http.on(UriBraces("/api/drivers/{}"), HTTP_PUT, [&http]() {

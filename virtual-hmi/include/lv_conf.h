@@ -2,7 +2,10 @@
 #define LV_CONF_H
 #define LV_COLOR_DEPTH 16
 #define LV_COLOR_16_SWAP 0
-#define LV_MEM_SIZE (32U * 1024U)
+// The calculator UI (40 widgets, no shadows, gradients or images, length-limited text areas) leaves about 8 KB of this
+// pool free once built (lv_mem_monitor). Every KB not held here is a KB for Wi-Fi and TCP buffers, which is what ran
+// out on the lab board.
+#define LV_MEM_SIZE (24U * 1024U)
 #define LV_DISP_DEF_REFR_PERIOD 200
 #define LV_INDEV_DEF_READ_PERIOD 20
 #define LV_TICK_CUSTOM 0

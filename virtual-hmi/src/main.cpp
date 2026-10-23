@@ -26,7 +26,7 @@ static uint32_t pointerAt=0;
 #define FW_NAME "routeos-orbit-hmi"
 #endif
 #ifndef FW_VERSION
-#define FW_VERSION "1.1.0"
+#define FW_VERSION "1.1.1"
 #endif
 // Marks this image as routeOS firmware, so Termz and the device's updater will accept it.
 ROUTEOS_IMAGE(FW_NAME, FW_VERSION);

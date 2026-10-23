@@ -24,6 +24,8 @@ void begin();
 void networkUp();
 // An image is being received. Other subsystems keep out of its way (no Wi-Fi changes meanwhile).
 bool active();
+// Called twice a second by the Core's housekeeping task: closes an upload socket that has gone quiet.
+void watch();
 void attach(WebServer& http);
 
 }  // namespace ota

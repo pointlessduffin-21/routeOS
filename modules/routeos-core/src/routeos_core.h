@@ -20,11 +20,11 @@
 #include <Arduino.h>
 #include <WebServer.h>
 
-#define ROUTEOS_CORE_VERSION "1.1.0"
+#define ROUTEOS_CORE_VERSION "1.1.1"
 
 // Put this once in the firmware's main file, with string literals:
 //
-//   ROUTEOS_IMAGE("routeos-orbit-hmi", "1.1.0");
+//   ROUTEOS_IMAGE("routeos-orbit-hmi", "1.1.1");
 //
 // It stamps a marker into the image. Termz and this library's updater look for it, so a file is
 // recognised as routeOS firmware (and as one that guards its own start) before it is installed.

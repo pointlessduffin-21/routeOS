@@ -13,6 +13,8 @@ bool wifiBegin(const char* builtinSsid, const char* builtinPassword);
 
 namespace wifi {
 void attach(WebServer& http);
+// Called twice a second by the Core's housekeeping task: if the network in use stays down, try the other one.
+void watch();
 // Was a change of network started and not yet settled?
 bool changing();
 }  // namespace wifi

@@ -143,30 +143,28 @@ void setResult(const char* state, const char* ssid, const char* reason) {
 }
 
 // ---- Supervisor: if the network in use stays down, try the other one ----
-void supervisorTask(void*) {
-  uint32_t changedAt = millis();
-  for (;;) {
-    vTaskDelay(pdMS_TO_TICKS(1000));
-    if (trialActive || ota::active()) { changedAt = millis(); continue; }
-    if (WiFi.status() == WL_CONNECTED) {
+void supervise() {
+  static uint32_t changedAt = millis();
+  if (!started) return;                 // wifiBegin() has not run
+  if (trialActive || ota::active()) { changedAt = millis(); return; }
+  if (WiFi.status() == WL_CONNECTED) {
+    changedAt = millis();
+  } else {
+    const Cred* list[2];
+    int n = candidates(list);
+    if (n > 1 && millis() - changedAt > 30000) {
+      activeIdx = (activeIdx + 1) % n;
+      const Cred* next = list[activeIdx];
+      log('W', "Wi-Fi: no connection for 30 s, trying the %s network '%s'", next == &saved ? "saved" : "built-in", next->ssid);
+      WiFi.disconnect(false, false);
+      vTaskDelay(pdMS_TO_TICKS(200));
+      WiFi.begin(next->ssid, next->pass);
       changedAt = millis();
-    } else {
-      const Cred* list[2];
-      int n = candidates(list);
-      if (n > 1 && millis() - changedAt > 30000) {
-        activeIdx = (activeIdx + 1) % n;
-        const Cred* next = list[activeIdx];
-        log('W', "Wi-Fi: no connection for 30 s, trying the %s network '%s'", next == &saved ? "saved" : "built-in", next->ssid);
-        WiFi.disconnect(false, false);
-        vTaskDelay(pdMS_TO_TICKS(200));
-        WiFi.begin(next->ssid, next->pass);
-        changedAt = millis();
-      }
     }
-    if (scanTouched && millis() - scanTouched > 120000) {      // do not hold scan results for ever
-      if (WiFi.scanComplete() >= 0) WiFi.scanDelete();
-      scanTouched = 0;
-    }
+  }
+  if (scanTouched && millis() - scanTouched > 120000) {      // do not hold scan results for ever
+    if (WiFi.scanComplete() >= 0) WiFi.scanDelete();
+    scanTouched = 0;
   }
 }
 
@@ -367,16 +365,15 @@ bool wifiBegin(const char* ssid, const char* password) {
   activeIdx = 0;
   log('I', "Wi-Fi: joining the %s network '%s'", list[0] == &saved ? "saved" : "built-in", list[0]->ssid);
   WiFi.begin(list[0]->ssid, list[0]->pass);
-  if (!started) {
-    started = true;
-    xTaskCreate(supervisorTask, "ros-wifi", 3072, nullptr, 1, nullptr);
-  }
+  started = true;                       // from now on the Core's housekeeping task supervises the connection
   return true;
 }
 
 namespace wifi {
 
 bool changing() { return trialActive; }
+
+void watch() { supervise(); }
 
 void attach(WebServer& http) {
   http.on("/api/wifi", HTTP_GET, [&http]() {

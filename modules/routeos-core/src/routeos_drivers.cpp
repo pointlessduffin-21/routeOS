@@ -298,6 +298,13 @@ static void samplerTask(void*) {
   }
 }
 
+// The sampler costs a task's stack and control block, and a display-only board has no drivers, so it starts with the first one.
+static void ensureSampler() {
+  static bool running = false;
+  if (running) return;
+  running = xTaskCreatePinnedToCore(samplerTask, "ros-drivers", 4096, nullptr, 1, nullptr, 1) == pdPASS;
+}
+
 // ---- Persistence ----
 static void persist() {                  // caller holds the lock
   String all = "[";
@@ -350,6 +357,7 @@ static bool store(const String& id, const String& body, String& error, bool save
     if (save) persist();
   }
   unlock();
+  if (ok) ensureSampler();
   return ok;
 }
 
@@ -380,7 +388,6 @@ void begin() {
       if (!store(id, body, error, false)) log('W', "skipped saved driver '%s': %s", id.c_str(), error.c_str());
     }
   }
-  xTaskCreatePinnedToCore(samplerTask, "ros-drivers", 4096, nullptr, 1, nullptr, 1);
   log('I', "drivers ready: %u installed", (unsigned)count());
 }
 

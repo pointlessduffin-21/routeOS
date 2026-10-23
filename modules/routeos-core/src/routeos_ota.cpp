@@ -64,7 +64,7 @@ const char PREFIX[] = "ROUTEOS-IMAGE|1|";
 constexpr uint8_t PREFIX_LEN = sizeof(PREFIX) - 1;
 
 void parseTag() {
-  // name|version|core=1.1.0|ota=1|END
+  // name|version|core=1.1.1|ota=1|END
   char* fields[5];
   int n = 0;
   char* p = rx.buf;
@@ -350,14 +350,11 @@ void chunkUpload(WebServer& http, HTTPUpload& up) {
 
 // The multipart reader waits for bytes with no timeout. If the link dies mid-piece the web server would wait for ever
 // (and the display with it). This closes an upload socket that has gone quiet; the reader then gives up cleanly.
-void uploadWatchdog(void*) {
-  for (;;) {
-    vTaskDelay(pdMS_TO_TICKS(500));
-    if (chunk.inFlight && chunk.fd >= 0 && millis() - chunk.lastProgress > STALL_MS) {
-      log('W', "an upload piece went quiet for %u s; closing it", (unsigned)(STALL_MS / 1000));
-      chunk.inFlight = false;
-      lwip_shutdown(chunk.fd, SHUT_RDWR);
-    }
+void uploadWatchdog() {
+  if (chunk.inFlight && chunk.fd >= 0 && millis() - chunk.lastProgress > STALL_MS) {
+    log('W', "an upload piece went quiet for %u s; closing it", (unsigned)(STALL_MS / 1000));
+    chunk.inFlight = false;
+    lwip_shutdown(chunk.fd, SHUT_RDWR);
   }
 }
 
@@ -478,13 +475,14 @@ void networkUp() { networkIsUp = true; }
 
 bool active() { return rx.active; }
 
+void watch() { uploadWatchdog(); }
+
 void attach(WebServer& http) {
   http.on("/api/ota", HTTP_GET, [&http]() {
     if (internal::authorized(http)) internal::reply(http, 200, infoJson());
   });
   http.on("/api/ota/begin", HTTP_POST, [&http]() { handleBegin(http); });
   http.addHandler(new ChunkHandler());                       // owned by the server for the life of the program
-  xTaskCreate(uploadWatchdog, "ros-upload", 2048, nullptr, 1, nullptr);
   http.on("/api/ota/finish", HTTP_POST, [&http]() { handleFinish(http); });
   http.on("/api/ota/abort", HTTP_POST, [&http]() { handleAbort(http); });
   http.on("/api/ota/rollback", HTTP_POST, [&http]() { handleRollback(http); });

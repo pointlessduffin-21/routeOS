@@ -58,7 +58,7 @@ An ordinary ESP32 application image (`firmware.bin` from PlatformIO or Arduino) 
 marker. Put this once in the firmware's main file, with string literals:
 
 ```cpp
-ROUTEOS_IMAGE("routeos-orbit-hmi", "1.1.0");
+ROUTEOS_IMAGE("routeos-orbit-hmi", "1.1.1");
 ```
 
 It stamps `ROUTEOS-IMAGE|1|<name>|<version>|core=<core version>|ota=1|END` into the image. Linking fails without it,
@@ -127,6 +127,42 @@ a drop-in replacement the firmware uses instead of `WebServer`:
 What remains: the server is single-threaded, so a client that keeps sending odd requests can still keep it busy
 (for about a second each, or 30 s for a stalled one). It does not restart the device.
 
+## Memory, and a board that restarts rather than sits dead (Core 1.1.1)
+
+On the lab board, after about four hours, the display stopped answering. Nothing had crashed: the CPU ran and the serial
+console printed, but the board did not even answer ping. Its heap showed 63 KB free with the **largest free block 2 KB**.
+Wi-Fi and TCP need blocks of about 1.6 KB and more, so the network stack was starved and never recovered. The same state
+was then reproduced on purpose (a test build that shreds the heap, then a display viewer connects): with Core 1.1.0 the
+network died for good, every time.
+
+What explains it, measured on that board:
+
+* Only **8-bit DRAM** can be used for network buffers, and `ESP.getFreeHeap()` counts about 50 KB more (IRAM) that it
+  cannot. Real headroom was 25 KB. `/health`'s `heap` is the larger figure; `largest_block` is the one that matters.
+* A display viewer opening sends a 65 KB frame in a burst, and on a weak link that briefly took 11 to 17 KB of the 25 KB.
+  On a heap already fragmented by hours of uptime, nothing was left.
+* Core 1.1.0 itself had made it worse: four extra tasks created after Wi-Fi started (each a stack and a control block, and a
+  long-lived block in the middle of the heap), and a 32 KB LVGL pool that the UI barely uses.
+
+What 1.1.1 changes:
+
+| Change | Effect |
+| --- | --- |
+| One housekeeping task (`ros-watch`) replaces the web-request, upload and Wi-Fi tasks, and starts before the network | fewer, earlier allocations |
+| The driver sampler task starts with the first installed driver | nothing held on a board with no drivers |
+| LVGL pool 32 KB to 24 KB (the UI leaves about 8 KB of it free) | 8 KB back |
+| **Self-check**: if the largest block stays under 3 KB (or 8-bit free under 6 KB) for 10 s, the board logs it, saves the reason and restarts | a starved network now costs about 15 s, not a power cycle |
+| The display viewer gets a packet only when its socket has room (`select`), and is dropped after 15 s of nothing getting through | a slow link no longer stops HTTP while a display is open |
+| Wi-Fi modem sleep off | ping median 118 ms with 10% loss became 11 ms with 1 loss in 40 (two runs minutes apart, so the link also varied) |
+
+The restart reason is shown after the board comes back, in the log: `the last run was restarted by the self-check:
+largest block 2676 B, 21 KB free, up 0 min`. A new image that does this on every start is rolled back by the update guard
+like any other that keeps restarting. The serial status line now also prints `free8` (8-bit free) and `rssi`.
+
+Not solved by any of this: the lab board often sits at about -80 dBm (it sometimes reports -90 and drops its association),
+and the display's 65 KB first frame still takes a second or more over such a link. A better antenna position or access
+point is the real fix for that.
+
 ## What was tested, on the lab board (ESP32-D0WD-V3, 4 MB, no PSRAM)
 
 | Test | Result |
@@ -138,6 +174,12 @@ What remains: the server is single-threaded, so a client that keeps sending odd 
 | An image that **hangs** and never reaches the network | the previous firmware returned at the two-minute mark (145 s after the push) |
 | Half a request line, socket held open | before: the board rebooted. After: worst wait 1.05 s, no restart |
 | A stalled multipart request to an ordinary route | cut at 31 s, no restart, logged |
+| Heap shredded to a 2 KB largest block, then a display viewer connects (Core 1.1.0) | the network died and never came back, every time |
+| The same test on the Core 1.1.1 work-in-progress build (merged tasks, self-check) | warned, restarted itself after 10 s, logged why, back on the network |
+| Ten display sessions in a row on Core 1.1.0, six on the 1.1.1 work-in-progress build, 2,258 `/health` requests in five minutes | heap flat, no false self-check restart |
+
+The 1.1.1 results above are from work-in-progress builds. The final 1.1.1 image (24 KB LVGL pool, test routes removed)
+has been compiled but **not yet flashed or exercised**.
 
 Not tested: a power cut in the middle of an update (the design leaves the running slot untouched, but nobody has
 pulled the plug), installing an image built by the Arduino IDE (Termz's image check accepts it, but it was not

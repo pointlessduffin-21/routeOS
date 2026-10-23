@@ -4,6 +4,7 @@
 #include <WebSocketsServer.h>
 #include <esp_system.h>
 #include <esp_heap_caps.h>
+#include <lwip/sockets.h>
 #include "web_assets.h"
 #include "ui_bindings.h"
 #include <routeos_core.h>
@@ -28,7 +29,24 @@ static StaticQueue_t inputStruct,keyStruct;
 alignas(4) static uint8_t inputStorage[16*sizeof(rvdp::Input)];
 alignas(4) static uint8_t keyStorage[32*sizeof(rvdp::KeyInput)];
 static routeos::Server http(80);      // a WebServer that survives half-sent and stalled requests
-static WebSocketsServer ws(81);
+// WiFiClient::write waits up to ten seconds for room in the socket, and this one task also serves HTTP, so on a weak
+// link an open display used to stop every other request (Termz showed "Device not responding"). A packet is handed over
+// only when the socket can take it; otherwise it waits in the queue and the main loop keeps running.
+class Viewer : public WebSocketsServer {
+ public:
+  using WebSocketsServer::WebSocketsServer;
+  bool roomToSend(int num) {
+    if(num<0 || num>=WEBSOCKETS_SERVER_CLIENT_MAX || !_clients[num].tcp) return false;
+    int fd=_clients[num].tcp->fd();
+    if(fd<0) return false;
+    fd_set set;struct timeval none={0,0};
+    FD_ZERO(&set);FD_SET(fd,&set);
+    return select(fd+1,nullptr,&set,nullptr,&none)>0 && FD_ISSET(fd,&set);
+  }
+};
+static Viewer ws(81);
+static bool havePacket=false;
+static uint32_t packetWaitingSince=0;
 static int viewer=-1;
 static bool helloReceived=false,granted=false;
 static uint8_t peerMinor=0;
@@ -36,9 +54,10 @@ static uint32_t tx=0,rx=0,connectedAt=0,lastRx=0,networkStack=0;
 static rvdp::Packet sendPacket;
 
 void printMetrics(const char* stage) {
-  Serial.printf("[hmi] %s heap=%u min=%u largest=%u psram=%u reset=%d queue=%u drops=%u batches=%u bytes=%u ui_us=%u ui_stack=%u net_stack=%u\n",
-    stage,ESP.getFreeHeap(),ESP.getMinFreeHeap(),heap_caps_get_largest_free_block(MALLOC_CAP_8BIT),ESP.getPsramSize(),
-    int(esp_reset_reason()),outgoing?uxQueueMessagesWaiting(outgoing):0,drops.load(),batches.load(),sentBytes.load(),uiMicros.load(),uiStack.load(),networkStack);
+  // heap counts memory the network cannot use (IRAM); free8 and largest are what Wi-Fi and TCP actually allocate from.
+  Serial.printf("[hmi] %s heap=%u min=%u free8=%u largest=%u psram=%u reset=%d queue=%u drops=%u batches=%u bytes=%u ui_us=%u ui_stack=%u net_stack=%u rssi=%d\n",
+    stage,ESP.getFreeHeap(),ESP.getMinFreeHeap(),(unsigned)heap_caps_get_free_size(MALLOC_CAP_8BIT),(unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_8BIT),ESP.getPsramSize(),
+    int(esp_reset_reason()),outgoing?uxQueueMessagesWaiting(outgoing):0,drops.load(),batches.load(),sentBytes.load(),uiMicros.load(),uiStack.load(),networkStack,int(WiFi.RSSI()));
 }
 static void sendSmall(uint8_t type,const uint8_t* payload,size_t length) {
   uint8_t bytes[64];
@@ -124,6 +143,9 @@ static void network(void*) {
     // Physical USB possession is required to read the fresh development AP key.
     Serial.printf("[hmi] temporary AP %s key=%s URL=http://192.168.4.1/hmi\n",ssid.c_str(),password);
   }
+  // Modem sleep (the default) wakes the radio only at the access point's beacons. On a weak link that made replies late or
+  // lost (ping median 118 ms with 10% loss, against 11 ms and no loss without it). A display board has mains power to spare.
+  WiFi.setSleep(false);
   http.on("/hmi",HTTP_GET,[]{http.sendHeader("Cache-Control","no-store");http.send_P(200,"text/html; charset=utf-8",hmi_html);});
   http.on("/wire.js",HTTP_GET,[]{http.send_P(200,"text/javascript; charset=utf-8",hmi_wire_js);});
   http.on("/viewer.js",HTTP_GET,[]{http.send_P(200,"text/javascript; charset=utf-8",hmi_viewer_js);});
@@ -143,11 +165,21 @@ static void network(void*) {
     if(viewer>=0 && ((!helloReceived && millis()-connectedAt>5000) || millis()-lastRx>20000)) ws.disconnect(viewer);
     if(overflow.exchange(false)) newGeneration();
     // Only this task touches WebSockets. Old generations are drained, never sent.
-    if(xQueueReceive(outgoing,&sendPacket,0)==pdTRUE && ready && sendPacket.epoch==epoch) {
-      rvdp::put32(sendPacket.data+8,tx++);
-      sendPacket.data[5]=peerMinor;
-      if(!ws.sendBIN(viewer,sendPacket.data,sendPacket.length)) ws.disconnect(viewer);
-      else sentBytes+=sendPacket.length;
+    if(!havePacket) havePacket=xQueueReceive(outgoing,&sendPacket,0)==pdTRUE;
+    if(havePacket) {
+      if(!ready || viewer<0 || sendPacket.epoch!=epoch) {havePacket=false;packetWaitingSince=0;}
+      else if(ws.roomToSend(viewer)) {
+        havePacket=false;packetWaitingSince=0;
+        rvdp::put32(sendPacket.data+8,tx++);
+        sendPacket.data[5]=peerMinor;
+        if(!ws.sendBIN(viewer,sendPacket.data,sendPacket.length)) ws.disconnect(viewer);
+        else sentBytes+=sendPacket.length;
+      } else if(!packetWaitingSince) packetWaitingSince=millis()|1;
+      else if(millis()-packetWaitingSince>15000) {
+        // The link has not taken a byte for 15 s. Let the viewer go rather than hold up the device for it.
+        routeos::log('W',"display viewer too slow: nothing got through for 15 s");
+        havePacket=false;packetWaitingSince=0;ws.disconnect(viewer);
+      }
     }
     networkStack=uxTaskGetStackHighWaterMark(nullptr);
     if(millis()-metricsAt>=5000){metricsAt=millis();printMetrics("running");}

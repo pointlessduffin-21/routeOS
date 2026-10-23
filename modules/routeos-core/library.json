@@ -1,6 +1,6 @@
 {
   "name": "routeos-core",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "routeOS Core: device capability report, per-device management token, a runtime driver engine, an event log, Wi-Fi management with undo, and guarded over-the-air firmware updates, all driven by Termz.",
   "frameworks": "arduino",
   "platforms": "espressif32",
