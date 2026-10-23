@@ -4,7 +4,8 @@ from dataclasses import dataclass
 from enum import IntEnum
 import struct
 
-MAX_PIXELS = 320 * 240
+MAX_DIMENSION = 65535             # DISPLAY_INFO carries u16 width and height: any size the field can say
+MAX_PIXELS = 64 * 1024 * 1024   # a memory guard only (the viewer keeps two RGBA copies); 8K x 8K fits, every real display does
 MAX_RECT = 16_384
 MAX_PAYLOAD = MAX_RECT + 17
 HEADER = struct.Struct('>4sBBBBII')
@@ -64,8 +65,8 @@ def unpack(data):
     return Packet(kind, sequence, data[HEADER.size:], minor)
 
 
-def hello(control=False, keyboard=False):
-    return HELLO.pack(1, 0, 1, int(keyboard), 1, MAX_RECT, bool(control))
+def hello(control=False, keyboard=False, jpeg=False):
+    return HELLO.pack(1, 0, 1, int(keyboard), 1 | (2 if jpeg else 0), MAX_RECT, bool(control))
 
 
 def read_hello(payload):
@@ -85,7 +86,7 @@ def read_display(payload):
     if len(payload) != DISPLAY.size:
         raise ValueError('Invalid DISPLAY_INFO size')
     w, h, pixel, rotation, session, features = DISPLAY.unpack(payload)
-    if not (0 < w <= 320 and 0 < h <= 240 and w * h <= MAX_PIXELS):
+    if not (0 < w <= MAX_DIMENSION and 0 < h <= MAX_DIMENSION and w * h <= MAX_PIXELS):
         raise ValueError('Invalid display dimensions')
     if pixel != 1 or rotation or features & ~3:
         raise ValueError('Unsupported display format/features')
@@ -102,18 +103,30 @@ def read_rectangle(payload, width, height):
     if len(payload) < RECT.size:
         raise ValueError('Truncated rectangle')
     frame, x, y, w, h, encoding, length = RECT.unpack_from(payload)
-    if not w or not h or x + w > width or y + h > height or encoding != 1:
+    if not w or not h or x + w > width or y + h > height or encoding not in (1, 2):
         raise ValueError('Invalid rectangle bounds/encoding')
-    if length != w * h * 2 or length > MAX_RECT or len(payload) != RECT.size + length:
+    if encoding == 1:
+        if length != w * h * 2 or length > MAX_RECT:
+            raise ValueError('Invalid rectangle length')
+    elif not 0 < length <= MAX_RECT:
+        raise ValueError('Invalid compressed rectangle length')
+    if len(payload) != RECT.size + length:
         raise ValueError('Invalid rectangle length')
-    return frame, x, y, w, h, payload[RECT.size:]
+    return frame, x, y, w, h, encoding, payload[RECT.size:]
 
 
-def read_end(payload):
+def max_rectangles(width, height):
+    """The most rectangles one frame may hold: twice what a full snapshot needs at the largest rectangle, plus slack.
+    A small display never needs more than 512; a large one needs more, because a rectangle is at most MAX_RECT bytes."""
+    full = -(-(width * height * 2) // MAX_RECT)
+    return min(65535, 512 + 2 * full)
+
+
+def read_end(payload, limit=512):
     if len(payload) != END.size:
         raise ValueError('Invalid FRAME_END size')
     frame, count, full, timestamp = END.unpack(payload)
-    if not count or count > 512 or full > 1:
+    if not count or count > limit or full > 1:
         raise ValueError('Invalid FRAME_END fields')
     return frame, count, bool(full), timestamp
 

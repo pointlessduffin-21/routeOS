@@ -57,3 +57,13 @@ desktop/build/
 desktop/dist/
 desktop/__pycache__/
 desktop/icon.png
+
+# ESP-IDF / ESP32-P4 HMI
+p4/hmi/managed_components/
+p4/hmi/sdkconfig
+p4/hmi/sdkconfig.old
+p4/hmi/main/wifi_secrets.h
+build.log
+
+p4/hmi/*install-the-effortless-plugin*.txt
+

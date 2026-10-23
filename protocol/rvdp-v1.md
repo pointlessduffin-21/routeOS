@@ -56,10 +56,13 @@ Both keyboard capability and CONTROL_STATE grant are required. The firmware's
 Connection input epochs discard stale input; a visual RESYNC preserves typing.
 
 No clipboard/audio/file transfer.
-Dimensions are bounded to 320×240; firmware is fixed at 240×135. Every rectangle
+Dimensions are bounded to 2048×2048 and 1,048,576 pixels in total (originally
+320×240; the 800×1280 ESP32-P4 panel needs the larger frame and older viewers
+reject it as an unsupported display). Every rectangle
 must be nonempty, in bounds, encoding 1 and exactly `w*h*2` bytes, not exceeding
 the negotiated limit. The current firmware profile requires HELLO max pixel
-bytes of at least one draw strip (7,680 bytes); smaller offers are rejected.
+bytes of at least one draw strip (7,680 bytes on the 240×135 build, 12,800 on
+the 800×1280 build); smaller offers are rejected.
 The simulator supports smaller offers down to one row. Unsupported directions or payloads
 close the session. Control capability and grant are distinct; viewers send no
 pointer or keyboard packets until grant arrives, and the device validates permission too.

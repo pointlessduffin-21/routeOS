@@ -1,0 +1,7 @@
+# Name,   Type, SubType, Offset, Size
+# Two application slots so routeOS can update itself over the air and fall back.
+nvs,      data, nvs,     ,       24K,
+otadata,  data, ota,     ,       8K,
+phy_init, data, phy,     ,       4K,
+ota_0,    app,  ota_0,   ,       3M,
+ota_1,    app,  ota_1,   ,       3M,
