@@ -1,0 +1,14 @@
+build/
+sdkconfig
+sdkconfig.old
+sdkconfig.credentials
+managed_components/
+main/wifi_secrets.h
+
+
+# local diagnostics
+cap_*.txt
+capture_boot.txt
+screen.png
+rect*.jpg
+
