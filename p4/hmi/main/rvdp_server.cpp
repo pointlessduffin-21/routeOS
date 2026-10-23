@@ -317,6 +317,25 @@ void guardViewer() {
     }
 }
 
+// Called by the server when a socket goes away. It must not touch the socket: it is already being closed. Clearing the
+// ownership here is what stops a viewer that closed its tab from holding the display for the next twenty seconds, which
+// is what the next viewer experienced as "another viewer is connected".
+void forgetViewer(int fd) {
+    if (viewer != fd) return;
+    viewer = -1;
+    helloDone = granted = false;
+    peerMinor = 0;
+    peerJpeg = false;
+    batchActive = false;
+    batchSent = batchTotal = 0;
+    portENTER_CRITICAL(&stateLock);
+    memset(dirty, 0, sizeof(dirty));
+    portEXIT_CRITICAL(&stateLock);
+    routeos::log('I', "rvdp: viewer on socket %d closed, display free", fd);
+}
+
+void onSessionClose(httpd_handle_t, int fd) { forgetViewer(fd); }
+
 // ---- WebSocket ----
 esp_err_t handler(httpd_req_t* req) {
     const int fd = httpd_req_to_sockfd(req);
@@ -654,6 +673,7 @@ void begin() {
     // httpd closes a socket that has sent nothing for recv_wait_timeout seconds. A viewer that is only watching is
     // idle for minutes at a time, so this must not be the default five.
     config.recv_wait_timeout = 30;
+    config.close_fn = onSessionClose;      // a closed tab frees the display immediately
     if (httpd_start(&server, &config) != ESP_OK) {
         ESP_LOGE(TAG, "cannot start the display server on port 81");
         server = nullptr;
