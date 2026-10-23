@@ -321,13 +321,27 @@ void guardViewer() {
 esp_err_t handler(httpd_req_t* req) {
     const int fd = httpd_req_to_sockfd(req);
     if (req->method == HTTP_GET) {
-        // A WebSocket handshake: the newest viewer owns the display. Anything the previous one left behind is
-        // abandoned here rather than guessed at later, because lwIP recycles descriptor numbers and a half-open
-        // socket would otherwise keep the port silent.
+        // A WebSocket handshake. The viewer that is already watching keeps the display: two clients that reconnect on
+        // their own would otherwise keep stealing it from each other, and every steal throws away a half-sent frame and
+        // starts a full one, which is what makes the screen look slow and flaky. A viewer that has gone quiet is
+        // replaced, because lwIP recycles descriptor numbers and a half-open socket would keep the port silent.
         if (viewer != fd) {
+            // Each rectangle is written as a header and a payload in separate small writes. With Nagle on, the second
+            // write waits for an ACK, and the peer holds that ACK for its delayed-ACK timer: about 200 ms per rectangle,
+            // which is what made a full screen take seconds on a link that was otherwise fine.
+            int one = 1;
+            setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one));
             const int previous = viewer;
-            adoptViewer(fd);
-            if (previous >= 0) closeSocket(previous);
+            const uint32_t now = nowMs();
+            const bool gone = previous >= 0 && httpd_ws_get_fd_info(server, previous) == HTTPD_WS_CLIENT_INVALID;
+            const bool stale = previous < 0 || gone || (!helloDone && now - connectedAt > HELLO_WAIT_MS) ||
+                               now - lastRx > IDLE_MS;
+            if (stale) {
+                adoptViewer(fd);
+                if (previous >= 0) closeSocket(previous);
+            } else {
+                routeos::log('W', "rvdp: second viewer on socket %d, keeping the one already watching", fd);
+            }
         }
         return ESP_OK;
     }
@@ -335,7 +349,12 @@ esp_err_t handler(httpd_req_t* req) {
     httpd_ws_frame_t frame = {};
     frame.type = HTTPD_WS_TYPE_BINARY;
     esp_err_t err = httpd_ws_recv_frame(req, &frame, 0);
-    if (err != ESP_OK) return err;
+    if (err != ESP_OK) {
+        // The socket is gone. Free the display now rather than waiting out the idle timeout, or the next viewer is
+        // turned away from a screen nobody is watching.
+        if (viewer == fd) dropViewer(fd);
+        return err;
+    }
     if (frame.type == HTTPD_WS_TYPE_CLOSE) {
         routeos::log('W', "rvdp in: close frame from viewer");
         dropViewer(fd);
@@ -350,7 +369,10 @@ esp_err_t handler(httpd_req_t* req) {
     uint8_t buf[1024];
     frame.payload = buf;
     err = httpd_ws_recv_frame(req, &frame, frame.len);
-    if (err != ESP_OK) return err;
+    if (err != ESP_OK) {
+        if (viewer == fd) dropViewer(fd);
+        return err;
+    }
 
     uint8_t type;
     uint32_t sequence;
@@ -362,7 +384,9 @@ esp_err_t handler(httpd_req_t* req) {
     }
     if (viewer != fd) {
         // A frame from a socket we do not own: tell it the display is taken, on its own socket.
-        uint8_t rejection[16 + 2 + sizeof(BUSY) - 1];
+        // The buffer has to outlive this call: the asynchronous send is handed to the server task, so a stack buffer
+        // would be overwritten before the bytes leave. One static buffer is enough - only the server task writes here.
+        static uint8_t rejection[16 + 2 + sizeof(BUSY) - 1];
         rvdp::header(rejection, rvdp::ERROR, 0, 2 + sizeof(BUSY) - 1);
         rvdp::put16(rejection + 16, 409);
         memcpy(rejection + 18, BUSY, sizeof(BUSY) - 1);
@@ -372,8 +396,13 @@ esp_err_t handler(httpd_req_t* req) {
         busy_frame.type = HTTPD_WS_TYPE_BINARY;
         busy_frame.payload = rejection;
         busy_frame.len = sizeof(rejection);
-        httpd_ws_send_frame_async(server, fd, &busy_frame);
+        const esp_err_t sent = httpd_ws_send_frame_async(server, fd, &busy_frame);
         xSemaphoreGive(sendLock);
+        routeos::log('W', "rvdp: busy reply to socket %d: %s (closing)", fd, esp_err_to_name(sent));
+        // This board's stack drops the queued frame when the socket closes right after it, so the message usually does
+        // not reach the viewer - it just sees a closed connection. Closing is still the honest choice: the socket is
+        // not the owner, and leaving it open would hold one of only three slots. Viewers that care read "closed before
+        // any packet" as "someone else is watching" (Termz does exactly that).
         closeSocket(fd);
         return ESP_OK;
     }
