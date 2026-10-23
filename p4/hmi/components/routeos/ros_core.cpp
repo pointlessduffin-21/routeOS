@@ -398,7 +398,6 @@ httpd_handle_t startServer() {
   httpd_register_uri_handler(server, &drivers);
   wifi::attach(server);
   ota::attach(server);
-  pageAttach(server);
   return server;
 }
 

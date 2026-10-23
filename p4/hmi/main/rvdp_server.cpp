@@ -1,4 +1,4 @@
-#include "rvdp_server.h"
+﻿#include "rvdp_server.h"
 
 #include <atomic>
 #include <errno.h>
@@ -56,10 +56,11 @@ uint8_t* jpegIn;                                    // one band, RGB565 little e
 uint8_t* jpegOut;
 uint32_t jpegOutCapacity;
 bool peerJpeg;                                      // the viewer said it can decode encoding 2
-constexpr uint32_t JPEG_QUALITY = 50;
+// Quality is air time here. 40 keeps text legible and drops roughly a third of the bytes a 50 would send.
+constexpr uint32_t JPEG_QUALITY = 28;
 // Consecutive dirty bands travel as one JPEG: each image repeats its own tables (~600 B), and on a slow link every
 // extra round trip costs far more than the bytes saved.
-constexpr uint16_t JPEG_GROUP = 8;
+constexpr uint16_t JPEG_GROUP = 32;         // 256 rows per image: the cost is per write, not per byte
 constexpr size_t JPEG_MAX_BYTES = BAND_BYTES * JPEG_GROUP;
 
 httpd_handle_t server;
@@ -204,7 +205,8 @@ bool encodeBand(uint16_t y, uint16_t rows, size_t max_raw, size_t* size) {
     if (jpeg_encoder_process(encoder, &cfg, jpegIn, uint32_t(rows) * W * 2, jpegOut, jpegOutCapacity, &out) != ESP_OK) {
         return false;
     }
-    if (!out || out > max_raw || out > PACKET_MAX - 16 - 17) return false;   // never overflow the packet buffer
+    if (!out || out > max_raw || out > PACKET_MAX - 16 - 17 || out > 16367) return false;   // 16367: the largest
+    // rectangle a viewer accepts (16,384 minus the 17-byte rectangle header); anything bigger is rejected wholesale.
     memcpy(packet + 16 + 17, jpegOut, out);
     *size = out;
     return true;
@@ -572,14 +574,10 @@ void senderTask(void*) {
                 dropViewer(fd);
                 break;
             }
-            if (!socketWritable(fd)) {
-                static int refused = 0;
-                if (refused < 6) {
-                    refused++;
-                    routeos::log('W', "rvdp: socket %d not writable yet (batch %d/%d)", fd, batchSent, batchTotal);
-                }
-                break;      // the queue keeps the batch; a slow link must not stop HTTP
-            }
+            // The socket belongs to the server task, which does the write, so a select() here can say "not writable"
+            // while the server is draining it. Waiting one tick and trying again is cheap; pushing anyway is what
+            // strands a batch half sent.
+            if (!socketWritable(fd)) break;
             int covered = 1;
             if (!sendBands(fd, y, rows, batchId, &covered)) {
                 dropViewer(fd);
@@ -591,8 +589,20 @@ void senderTask(void*) {
         }
         if (batchActive && batchSent >= batchTotal) {
             // The count is rectangles, not bands: a compressed rectangle can cover several bands.
-            sendEnd(fd, batchId, uint16_t(rectsSent), batchFull);
-            hmi::batches++;
+            // This is the message that lets the viewer show anything at all, so it is retried: one dropped FRAME_END
+            // leaves a viewer holding a complete frame it is not allowed to display, which is the "screen never
+            // arrives" failure - every rectangle was on the wire and the last one, the cheap one, was not.
+            bool ended = false;
+            for (int attempt = 0; attempt < 25 && !ended; attempt++) {
+                ended = sendEnd(fd, batchId, uint16_t(rectsSent), batchFull);
+                if (!ended) vTaskDelay(pdMS_TO_TICKS(10));
+            }
+            if (!ended) {
+                routeos::log('W', "rvdp: could not send the frame end, dropping the viewer");
+                dropViewer(fd);
+            } else {
+                hmi::batches++;
+            }
             batchActive = false;
             lastSent = nowMs();
         }

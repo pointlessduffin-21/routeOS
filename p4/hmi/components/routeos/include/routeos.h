@@ -49,10 +49,6 @@ bool wifiBegin(const char* builtinSsid, const char* builtinPassword);
 // Start the web server on port 80 with every Core route. Returns the handle so the firmware can add its own routes.
 httpd_handle_t startServer();
 
-// Registers the browser setup page and its link test. Called by startServer(); exposed so a firmware that runs its own
-// server can still have the page.
-void pageAttach(httpd_handle_t server);
-
 // For the firmware's own routes.
 bool authorized(httpd_req_t* req);                                   // replies 401/403/503 itself on failure
 esp_err_t reply(httpd_req_t* req, int code, const std::string& json);
