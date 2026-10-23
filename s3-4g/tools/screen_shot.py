@@ -55,7 +55,7 @@ def take(buffer):
 
 
 def main():
-    sock = socket.create_connection((HOST, 81), timeout=8)
+    sock = socket.create_connection((HOST, 81), timeout=30)
     key = base64.b64encode(os.urandom(16)).decode()
     sock.sendall(("GET /rvdp HTTP/1.1\r\nHost: %s:81\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
                   "Sec-WebSocket-Key: %s\r\nSec-WebSocket-Version: 13\r\n\r\n" % (HOST, key)).encode())
@@ -63,7 +63,7 @@ def main():
     while b"\r\n\r\n" not in reply:
         reply += sock.recv(1)
     print("handshake:", reply.split(b"\r\n")[0].decode(errors="replace"))
-    sock.settimeout(0.3)
+    sock.settimeout(5)
 
     sequence = 0
     hello = bytes([1, 0, 1, 1]) + struct.pack(">I", 3) + struct.pack(">I", 16384) + bytes([1])

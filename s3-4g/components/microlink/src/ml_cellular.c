@@ -686,45 +686,54 @@ static esp_err_t ppp_setup_and_dial(void)
      * Configure-Request frames via ppp_transmit(), which would go to the modem
      * while it's still in AT command mode and corrupt the AT session. */
 
-    /* Dial PPP data mode — ATD*99***1# specifies PDP context 1 explicitly.
-     * Retry up to 3 times: modem PDP deactivation is async and carrier-dependent,
-     * sometimes the first dial fails with ERROR even after CGACT=0,1 + delay. */
-    ESP_LOGI(TAG, "Dialing PPP (ATD*99***1#)...");
+    /* Dial PPP data mode.
+     *
+     * Which dial command a SIMCom modem accepts is firmware specific, and guessing wrong costs a whole boot: this
+     * board's A7670E-FASE answers ATD*99***1# with "+CME ERROR: operation not allowed" while other builds want the
+     * context-less dial or the 3GPP CGData command. So try each recipe, keep the first that answers CONNECT, and log
+     * every response - a firmware that wants something new then shows up in a single boot log. */
+    ESP_LOGI(TAG, "Dialing PPP...");
     s_cell.state = ML_CELL_STATE_PPP_CONNECTING;
 
+    /* Auto-dialling (the RNDIS/ECM path) holds the bearer and blocks PPP on Qualcomm-based SIMCom firmware. */
+    at_send_cmd("AT+DIALMODE=0", resp, sizeof(resp), 5000);
+    ESP_LOGI(TAG, "DIALMODE=0 -> %.40s", resp);
+
+    static const char *kDialRecipes[] = {
+        "ATD*99***1#",          /* PDP context 1 named explicitly (SIM7600 and most SIMCom) */
+        "ATD*99#",              /* context-less dial, still used by several Cat-1 builds */
+        "AT+CGDATA=\"PPP\",1",  /* 3GPP: enter PPP data state on context 1 */
+    };
+    const int recipes = (int)(sizeof(kDialRecipes) / sizeof(kDialRecipes[0]));
+
     bool dial_ok = false;
-    for (int attempt = 1; attempt <= 4; attempt++) {
-        at_send_cmd("ATD*99***1#", resp, sizeof(resp), 15000);
-        if (strstr(resp, "CONNECT")) {
-            dial_ok = true;
-            break;
-        }
-        ESP_LOGW(TAG, "PPP dial attempt %d/4 failed: %.30s", attempt, resp);
-        if (attempt < 4) {
-            /* Escalating recovery between retries:
-             * 1→2: hangup + PDP deactivate + 3s
-             * 2→3: hangup + PDP deactivate + 5s
-             * 3→4: full CFUN reset + 8s */
+    for (int pass = 1; pass <= 2 && !dial_ok; pass++) {
+        for (int i = 0; i < recipes && !dial_ok; i++) {
+            at_send_cmd(kDialRecipes[i], resp, sizeof(resp), 15000);
+            if (strstr(resp, "CONNECT")) {
+                ESP_LOGI(TAG, "PPP CONNECT via '%s' (pass %d)", kDialRecipes[i], pass);
+                dial_ok = true;
+                break;
+            }
+            ESP_LOGW(TAG, "PPP dial '%s' failed (pass %d): %.40s", kDialRecipes[i], pass, resp);
             at_send_cmd("ATH", resp, sizeof(resp), 5000);
             at_send_cmd("AT+CGACT=0,1", resp, sizeof(resp), 5000);
-            if (attempt >= 3) {
-                /* Nuclear option: CFUN=0 (minimum functionality) then CFUN=1 (full) */
-                ESP_LOGW(TAG, "PPP dial: CFUN reset on attempt %d", attempt);
-                at_send_cmd("AT+CFUN=0", resp, sizeof(resp), 10000);
-                vTaskDelay(pdMS_TO_TICKS(2000));
-                at_send_cmd("AT+CFUN=1", resp, sizeof(resp), 10000);
-                vTaskDelay(pdMS_TO_TICKS(8000));
-                /* Re-check registration after CFUN reset */
-                at_send_cmd("AT+CEREG?", resp, sizeof(resp), 5000);
-                ESP_LOGI(TAG, "Post-CFUN: CEREG -> %.40s", resp);
-            } else {
-                int delay_ms = (attempt == 1) ? 3000 : 5000;
-                vTaskDelay(pdMS_TO_TICKS(delay_ms));
-            }
+            vTaskDelay(pdMS_TO_TICKS(1500));
+        }
+        if (!dial_ok && pass == 1) {
+            /* Second pass after a radio reset: a bearer left half-open by the previous session is the usual reason
+             * every recipe fails on the first pass. */
+            ESP_LOGW(TAG, "PPP dial: CFUN reset before retrying");
+            at_send_cmd("AT+CFUN=0", resp, sizeof(resp), 10000);
+            vTaskDelay(pdMS_TO_TICKS(2000));
+            at_send_cmd("AT+CFUN=1", resp, sizeof(resp), 10000);
+            vTaskDelay(pdMS_TO_TICKS(8000));
+            at_send_cmd("AT+CEREG?", resp, sizeof(resp), 5000);
+            ESP_LOGI(TAG, "Post-CFUN: CEREG -> %.40s", resp);
         }
     }
     if (!dial_ok) {
-        ESP_LOGE(TAG, "PPP dial failed (3 attempts)");
+        ESP_LOGE(TAG, "PPP dial failed: no recipe answered CONNECT");
         s_cell.state = ML_CELL_STATE_ERROR;
         return ESP_FAIL;
     }

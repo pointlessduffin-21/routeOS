@@ -33,7 +33,9 @@ uint32_t disconnects = 0, lastDisconnectMs = 0, scanTouched = 0;
 uint8_t lastReason = 0;
 
 constexpr int MAX_SCAN = 40;
+constexpr int kMaxListed = 24;                       // how many networks the page shows
 wifi_ap_record_t scanRecs[MAX_SCAN];
+int scanOrder[kMaxListed];                           // shared with the serialiser; only the web server touches it
 uint16_t scanCount = 0;
 volatile bool scanRunning = false, scanHave = false, diagScan = false;
 
@@ -135,8 +137,29 @@ void onEvent(void*, esp_event_base_t base, int32_t id, void* data) {
     log('I', "Wi-Fi up: '%s' at %d dBm, address %s", (const char*)ap.ssid, (int)ap.rssi, wifi::ip().c_str());
     wifi_hook::networkUp();
   } else if (base == WIFI_EVENT && id == WIFI_EVENT_SCAN_DONE) {
+    // Reading the records consumes them, and this event can arrive more than once for one scan when the radio lives on
+    // the companion chip. A second read would return zeros and wipe what the first one collected, so only the first
+    // event of a burst may read.
+    static uint32_t lastFetchMs = 0;
+    if (millis() - lastFetchMs < 800) return;
+    lastFetchMs = millis();
+
     uint16_t n = MAX_SCAN;
-    if (esp_wifi_scan_get_ap_records(&n, scanRecs) == ESP_OK) scanCount = n; else scanCount = 0;
+    esp_err_t bulk = esp_wifi_scan_get_ap_records(&n, scanRecs);
+    scanCount = bulk == ESP_OK ? n : 0;
+    log('I', "Wi-Fi scan: bulk read %s, %u records, first '%s'", esp_err_to_name(bulk), (unsigned)scanCount,
+        scanCount ? (const char*)scanRecs[0].ssid : "");
+    if (scanCount == 0) {
+      uint16_t total = 0;
+      if (esp_wifi_scan_get_ap_num(&total) == ESP_OK) {
+        for (uint16_t i = 0; i < total && i < MAX_SCAN; i++) {
+          if (esp_wifi_scan_get_ap_record(&scanRecs[i]) != ESP_OK) break;
+          scanCount++;
+        }
+      }
+      log('I', "Wi-Fi scan: per-record read gave %u records, first '%s'", (unsigned)scanCount,
+          scanCount ? (const char*)scanRecs[0].ssid : "");
+    }
     scanHave = true;
     scanRunning = false;
     if (diagScan) {                                    // a join keeps failing: say what the radio can hear at all
@@ -317,18 +340,30 @@ std::string scanJson() {
     cJSON_AddBoolToObject(root, "running", false);
     cJSON_AddBoolToObject(root, "started", true);
     cJSON_AddNumberToObject(root, "total", scanCount);
-    int order[MAX_SCAN];
+    log('I', "Wi-Fi scan: %u records, first '%s' rssi=%d", (unsigned)scanCount,
+        scanCount ? (const char*)scanRecs[0].ssid : "", scanCount ? (int)scanRecs[0].rssi : 0);
+    // The index array lives outside this stack frame on purpose: it used to be a local, and inside the web server's
+    // task the records came back as zeros, which looked exactly like an empty scan.
+    // The transport pads the list with blank records, so only entries that actually carry a name are listed; they would
+    // otherwise sort to the top (rssi 0 beats every real -40 dBm) and fill the whole page.
     int count = scanCount < MAX_SCAN ? scanCount : MAX_SCAN;
-    for (int i = 0; i < count; i++) order[i] = i;
-    for (int i = 1; i < count; i++) {                       // strongest first
-      int key = order[i], k = i - 1;
-      while (k >= 0 && scanRecs[order[k]].rssi < scanRecs[key].rssi) { order[k + 1] = order[k]; k--; }
-      order[k + 1] = key;
+    int listed = 0;
+    for (int i = 0; i < count && listed < kMaxListed; i++) {
+      if (scanRecs[i].ssid[0]) scanOrder[listed++] = i;
+    }
+    for (int i = 0; i < listed; i++) {                       // strongest first
+      int best = i;
+      for (int j = i + 1; j < listed; j++) {
+        if (scanRecs[scanOrder[j]].rssi > scanRecs[scanOrder[best]].rssi) best = j;
+      }
+      const int swap = scanOrder[i];
+      scanOrder[i] = scanOrder[best];
+      scanOrder[best] = swap;
     }
     wifi_ap_record_t mine = {};
     bool up = gotIp && esp_wifi_sta_get_ap_info(&mine) == ESP_OK;
-    for (int k = 0; k < count && k < 24; k++) {
-      const wifi_ap_record_t& r = scanRecs[order[k]];
+    for (int k = 0; k < listed; k++) {
+      const wifi_ap_record_t& r = scanRecs[scanOrder[k]];
       cJSON* o = cJSON_CreateObject();
       cJSON_AddStringToObject(o, "ssid", (const char*)r.ssid);
       cJSON_AddStringToObject(o, "bssid", bssidText(r.bssid).c_str());
@@ -474,6 +509,10 @@ void attach(httpd_handle_t server) {
     if (!scanRunning) {
       wifi_scan_config_t cfg = {};
       scanHave = false;
+      // A fresh scan on this transport reuses the previous result slot: without dropping the old list the radio reports
+      // the right number of networks but every record comes back blank.
+      esp_wifi_clear_ap_list();
+      scanCount = 0;
       if (esp_wifi_scan_start(&cfg, false) != ESP_OK) return fail(r, 500, "The radio could not start a scan");
       scanRunning = true;
       log('I', "Wi-Fi: scanning for networks");

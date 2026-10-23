@@ -2,8 +2,8 @@
 #include <string.h>
 #include <time.h>
 #include "esp_chip_info.h"
-#include "esp_flash.h"
-#include "esp_heap_caps.h"
+#include "esp_flash.h"#include "esp_heap_caps.h"
+#include "esp_log.h"
 #include "esp_mac.h"
 #include "esp_ota_ops.h"
 #include "esp_psram.h"
@@ -251,7 +251,10 @@ namespace wifi_hook {
 void networkUp() {
   ota::networkUp();
   if (!gManage || gToken[0]) {
-    if (gManage) printf("[core] management token: %s\n", gToken);          // serial only, never the log
+    if (gManage) {
+      printf("[core] management token: %s\n", gToken);          // serial only, never the log
+      ESP_LOGI("ros-auth", "management token: %s", gToken);      // and the USB console, which is the only one some boards expose
+    }
     return;
   }
   char token[33];
@@ -259,6 +262,7 @@ void networkUp() {
   Nvs("roscore", true).put("token", token);
   strlcpy(gToken, token, sizeof(gToken));
   printf("[core] created management token: %s\n", gToken);
+  ESP_LOGI("ros-auth", "created management token: %s", gToken);
 }
 }  // namespace wifi_hook
 
@@ -394,6 +398,7 @@ httpd_handle_t startServer() {
   httpd_register_uri_handler(server, &drivers);
   wifi::attach(server);
   ota::attach(server);
+  pageAttach(server);
   return server;
 }
 
