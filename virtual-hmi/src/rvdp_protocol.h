@@ -2,8 +2,20 @@
 #include <stddef.h>
 #include <stdint.h>
 
+// Geometry belongs to the build, not the protocol: the 240x135 board and the 800x1280 panel share this header.
+// A build overrides these with RVDP_WIDTH / RVDP_HEIGHT / RVDP_STRIP_ROWS.
+#ifndef RVDP_WIDTH
+#define RVDP_WIDTH 240
+#endif
+#ifndef RVDP_HEIGHT
+#define RVDP_HEIGHT 135
+#endif
+#ifndef RVDP_STRIP_ROWS
+#define RVDP_STRIP_ROWS 16
+#endif
+
 namespace rvdp {
-constexpr uint16_t WIDTH = 240, HEIGHT = 135, STRIP_ROWS = 16;
+constexpr uint16_t WIDTH = RVDP_WIDTH, HEIGHT = RVDP_HEIGHT, STRIP_ROWS = RVDP_STRIP_ROWS;
 constexpr size_t TILE_BYTES = WIDTH * STRIP_ROWS * 2;
 constexpr size_t MAX_PACKET = 16 + 17 + TILE_BYTES;
 enum Type : uint8_t { HELLO=1, DISPLAY_INFO=2, RECT=3, FRAME_END=4,

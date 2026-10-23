@@ -22,7 +22,7 @@
       if(type===2){
         if(this.width||n!==14)throw Error('Invalid display info');
         const w=d.getUint16(16),h=d.getUint16(18),features=d.getUint32(26);
-        if(!w||w>320||!h||h>240||a[20]!==1||a[21]||features>3||((features&2)&&a[5]!==1))throw Error('Unsupported display');
+        if(!w||w>2048||!h||h>2048||w*h>1048576||a[20]!==1||a[21]||features>3||((features&2)&&a[5]!==1))throw Error('Unsupported display');
         this.minor=a[5];this.keyboard=Boolean(features&2);this.width=w;this.height=h;this.capable=Boolean(features&1);this.pixels=new Uint8ClampedArray(w*h*4);for(let i=3;i<this.pixels.length;i+=4)this.pixels[i]=255;
         return 'display';
       }
