@@ -65,5 +65,18 @@ p4/hmi/sdkconfig.old
 p4/hmi/main/wifi_secrets.h
 build.log
 
+# RVDP soak output (local test runs, not source)
+s3-4g/soak*.log
+s3-4g/soak*.csv
+s3-4g/soak*.out
+s3-4g/soak*-report.md
+s3-4g/probe-*.log
+s3-4g/p4-console*.log
+s3-4g/frame.txt
+s3-4g/policy*.txt
+s3-4g/soak_run.txt
+p4-*.png
+.vscode/
+
 p4/hmi/*install-the-effortless-plugin*.txt
 
