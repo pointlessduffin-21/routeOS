@@ -32,11 +32,11 @@ TOKEN = sys.argv[4] if len(sys.argv) > 4 else "ec9b7a701ecba6c02a09448c646eb053"
 
 WS_PORT = 81
 HTTP_PORT = 80
-PING_EVERY = float(os.environ.get("SOAK_PING", 5.0))         # keeps lastRx fresh, so the board never calls us stale
+PING_EVERY = float(os.environ.get("SOAK_PING", 3.0))         # keeps lastRx fresh, so the board never calls us stale
 HEALTH_EVERY = float(os.environ.get("SOAK_HEALTH", 60.0))
 REPAINT_EVERY = float(os.environ.get("SOAK_REPAINT", 300.0))
 INPUT_EVERY = float(os.environ.get("SOAK_INPUT", 300.0))
-STALL_LIMIT = 20.0      # nothing at all from the board: the session is dead
+STALL_LIMIT = 15.0      # under the board's own 20 s idle timeout, so a stall is logged before the board acts on it
 REPAINT_LIMIT = 90.0    # a full screen must arrive well inside this
 TAP_LIMIT = 25.0        # a tap that changes the page must be visible well inside this; it takes seconds, not ms
 RECONNECT_PAUSE = 5.0
@@ -128,6 +128,7 @@ class Health:
         self.reboots = 0
         self.free = []
         self.largest = []
+        self.rvdp = None
 
     def sample(self, handle, csv):
         caps = system = None
@@ -159,7 +160,20 @@ class Health:
             note(f"BOARD REBOOTED: uptime fell from {self.uptime}s to {uptime}s, reset reason {reset}", handle)
         self.uptime = uptime
         self.reset = reset
-        csv.write(f"{int(time.time())},{free},{largest},{uptime},{rssi},{channel}\n")
+        # The board's own view of the transport: how many viewers it lost, how often the sender wedged, how often a
+        # write failed. A soak that only sees its own side cannot tell "the board dropped me" from "the link died".
+        wedges = send_fails = viewer_drops = queue = ""
+        try:
+            local = fetch("/health")
+            wedges = local.get("wedges", "")
+            send_fails = local.get("send_fails", "")
+            viewer_drops = local.get("viewer_drops", "")
+            queue = local.get("queue", "")
+            self.rvdp = local
+        except Exception:                                          # noqa: BLE001
+            pass
+        csv.write(f"{int(time.time())},{free},{largest},{uptime},{rssi},{channel},"
+                  f"{wedges},{send_fails},{viewer_drops},{queue}\n")
         csv.flush()
 
 
@@ -400,7 +414,7 @@ def main():
     deadline = started + HOURS * 3600
     handle = open(LOG_PATH, "a", encoding="utf-8", buffering=1)
     csv = open(os.path.splitext(LOG_PATH)[0] + "-health.csv", "a", encoding="utf-8", buffering=1)
-    csv.write("# unix,heap_free_kb,largest_block_kb,uptime_s,rssi,channel\n")
+    csv.write("# unix,heap_free_kb,largest_block_kb,uptime_s,rssi,channel,wedges,send_fails,viewer_drops,queue\n")
 
     state = {"sequence": 0, "bytes": 0, "frames": 0, "rtt": [], "repaints": [], "rects": [],
              "health": Health(), "csv": csv, "batch_area": 0,
@@ -408,6 +422,7 @@ def main():
     sessions = drops = 0
     longest = 0.0
     next_hour = 1
+    refused = 0
 
     note(f"=== soak start: {HOST}:{WS_PORT}, {HOURS:.1f} h, log {LOG_PATH}", handle)
     note(f"    taps: history {HISTORY_BUTTON}, calc {CALC_BUTTON}, keypad digit {DIGIT}", handle)
@@ -420,8 +435,17 @@ def main():
         held = time.time() - opened
         longest = max(longest, held)
         busy = "busy" in ending or "refused" in ending
+        unreachable = "connect failed" in ending
+        refused = refused + 1 if unreachable else 0
         if ending == "deadline":
             note(f"session {sessions}: ran {held / 60:.1f} min, {frames} frames", handle)
+        elif refused == 1 or (refused and refused % 20 == 0):
+            # A board that is alive but not serving gets one line, then a reminder every twenty attempts, instead of
+            # sixteen hundred identical lines that bury the moment things went wrong.
+            note(f"session {sessions}: board not serving ({ending}) - attempt {refused} to reconnect", handle)
+            board_logs(handle, wanted=6)
+        elif refused:
+            pass
         else:
             drops += 1
             note(f"session {sessions}: ENDED after {held / 60:.1f} min ({ending}), {frames} frames", handle)
@@ -438,7 +462,10 @@ def main():
                  f"heap {health.free[-1] if health.free else '?'} KB, reboots {health.reboots} ---", handle)
 
         if time.time() < deadline:
-            time.sleep(BUSY_PAUSE if busy else RECONNECT_PAUSE)
+            pause = BUSY_PAUSE if busy else RECONNECT_PAUSE
+            if refused:
+                pause = min(60.0, 5.0 * refused)      # back off while the board is not serving, so we do not spin
+            time.sleep(pause)
 
     health = state["health"]
     taps = state["taps"]

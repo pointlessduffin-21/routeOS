@@ -13,8 +13,9 @@
 namespace hmi {
 extern QueueHandle_t inputs, keys;
 extern std::atomic<uint32_t> epoch, drops, sentBytes, batches;
-extern std::atomic<uint32_t> inputEpoch;
-extern std::atomic<bool> inputReady;
+extern std::atomic<uint32_t> inputEpoch;  // Why a viewer went away, and how often the transport had to defend itself. These are the numbers to look at when a
+  // remote viewer drops: they separate "the viewer stopped answering" from "the sender wedged" from "a send failed".
+  extern std::atomic<uint32_t> viewerDrops, wedges, sendFails;extern std::atomic<bool> inputReady;
 extern std::atomic<bool> ready, refresh, overflow;
 void createQueues();
 }

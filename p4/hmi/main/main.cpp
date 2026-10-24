@@ -44,11 +44,14 @@ static esp_err_t health(httpd_req_t* req) {
     snprintf(body, sizeof(body),
              "{\"width\":%d,\"height\":%d,\"heap\":%u,\"min_heap\":%u,\"largest_block\":%u,\"psram\":%u,\"queue\":%u,\"drops\":%u,"
              "\"batches\":%u,\"bytes\":%u,\"ui_us\":0,\"ui_stack\":0,\"net_stack\":0,\"control_enabled\":true,\"page\":\"%s\","
-             "\"expression\":\"%s\",\"result\":\"%s\",\"history_count\":%u,\"note_length\":%u}",
+             "\"expression\":\"%s\",\"result\":\"%s\",\"history_count\":%u,\"note_length\":%u,"
+             "\"viewer_drops\":%u,\"wedges\":%u,\"send_fails\":%u,\"uptime_s\":%u}",
              HMI_WIDTH, HMI_HEIGHT, (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL), (unsigned)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL),
              (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL), (unsigned)heap_caps_get_total_size(MALLOC_CAP_SPIRAM),
              (unsigned)rvdp_transport::pending(), (unsigned)hmi::drops.load(), (unsigned)hmi::batches.load(), (unsigned)hmi::sentBytes.load(),
-             state.page, state.expression, state.result, state.historyCount, state.noteLength);
+             state.page, state.expression, state.result, state.historyCount, state.noteLength,
+             (unsigned)hmi::viewerDrops.load(), (unsigned)hmi::wedges.load(), (unsigned)hmi::sendFails.load(),
+             (unsigned)(esp_timer_get_time() / 1000000));
     httpd_resp_set_type(req, "application/json");
     return httpd_resp_send(req, body, HTTPD_RESP_USE_STRLEN);
 }

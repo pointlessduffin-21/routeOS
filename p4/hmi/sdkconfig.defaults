@@ -52,3 +52,7 @@ CONFIG_HTTPD_WS_SUPPORT=y
 
 # One DSI frame buffer: with three, the adapter drew into fb1/fb2 while the panel kept scanning fb0.
 CONFIG_BSP_LCD_DPI_BUFFER_NUMS=1
+
+# The BSP pulls an audio codec driver this board never uses. Pin the option so a rebuild reproduces the exact
+# configuration that was tested, instead of whatever the driver's default happens to be next time.
+CONFIG_CODEC_I2C_BACKWARD_COMPATIBLE=n

@@ -29,7 +29,14 @@
 #include "ml_cellular.h"
 #include "ml_net_switch.h"
 #include "rvdp_server.h"
+// Credentials are not in the repository, so the header may not exist. Building without it is normal: the board runs
+// cellular-only and says so at boot. Copy wifi_secrets.h.example to wifi_secrets.h to give it a Wi-Fi to try first.
+#if __has_include("wifi_secrets.h")
 #include "wifi_secrets.h"
+#else
+#define HMI_WIFI_SSID ""
+#define HMI_WIFI_PASSWORD ""
+#endif
 
 static const char* TAG = "routeos-4g";
 static constexpr gpio_num_t kModemEnablePin = GPIO_NUM_21;

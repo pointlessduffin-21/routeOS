@@ -5,6 +5,7 @@
 #include <string.h>
 #include <esp_heap_caps.h>
 #include <esp_log.h>
+#include <esp_system.h>
 #include <esp_timer.h>
 #include <driver/jpeg_encode.h>
 #include <lwip/sockets.h>
@@ -34,6 +35,13 @@ constexpr size_t PACKET_MAX = 16 + 17 + BAND_BYTES;
 constexpr uint32_t HELLO_WAIT_MS = 5000;            // a client that never says hello
 constexpr uint32_t IDLE_MS = 20000;                 // no packet from the viewer
 constexpr uint32_t STALL_MS = 20000;                // socket room, but nothing getting through
+// A link slower than the screen changes is not a fault: the socket stays full, and the only correct answer is to wait
+// and let the dirty mask coalesce everything newer into the next frame. This is the longest a frame may take to drain
+// before it is worth saying so in the log. It must never be a reason to drop the viewer.
+constexpr uint32_t BACKPRESSURE_MS = 60000;
+// A busier screen must not cost more CPU than it has to: pause this long between frames so a burst of small
+// invalidations (a blinking cursor, a typing hand) coalesces into one frame instead of one frame each.
+constexpr uint32_t FRAME_GAP_MS = 120;
 constexpr uint32_t CONTROL = 1;                     // this build grants keyboard and pointer
 
 constexpr const char BUSY[] = "routeOS display is busy. Close the other browser tab or iShareScreen session, then retry.";
@@ -136,6 +144,7 @@ bool sendLocked(int fd, uint8_t type, size_t payload) {
     // in one go instead of being abandoned half way (which is what used to desynchronise the stream).
     const esp_err_t err = httpd_ws_send_frame_async(server, fd, &frame);
     if (err != ESP_OK) {
+        hmi::sendFails++;
         static int reported = 0;
         if (reported < 4) {
             reported++;
@@ -150,6 +159,19 @@ bool sendLocked(int fd, uint8_t type, size_t payload) {
 bool sendSmall(int fd, uint8_t type, const uint8_t* payload, size_t length) {
     if (length > PACKET_MAX - 16) return false;
     xSemaphoreTake(sendLock, portMAX_DELAY);
+    memcpy(packet + 16, payload, length);
+    const bool ok = sendLocked(fd, type, length);
+    xSemaphoreGive(sendLock);
+    return ok;
+}
+
+// A reply from the receive handler must never wait. The handler runs in the server task, which is the task that
+// actually writes the socket, so blocking it on the sender's lock stops the whole server: no ping is answered, no new
+// connection is accepted, and a viewer watching a busy screen is dropped by its own idle timeout. Skipping a pong is
+// harmless; a wedged server is not.
+bool sendSmallTry(int fd, uint8_t type, const uint8_t* payload, size_t length) {
+    if (length > PACKET_MAX - 16) return false;
+    if (xSemaphoreTake(sendLock, 0) != pdTRUE) return false;
     memcpy(packet + 16, payload, length);
     const bool ok = sendLocked(fd, type, length);
     xSemaphoreGive(sendLock);
@@ -282,8 +304,15 @@ void resetViewer() {
 }
 
 void dropViewer(int fd) {
+    // Read the counters before resetViewer() clears them: logging "0 bands sent" after every drop made a mid-frame
+    // failure look like a fresh session being refused.
+    const uint32_t sent = batchSent;
+    const uint32_t total = batchTotal;
+    const uint32_t quiet = (viewer == fd) ? nowMs() - lastRx : 0;
     if (viewer == fd) resetViewer();
-    routeos::log('W', "rvdp: dropping viewer on socket %d (%u bands sent)", fd, (unsigned)batchSent);
+    hmi::viewerDrops++;
+    routeos::log('W', "rvdp: dropping viewer on socket %d after %u/%u bands, quiet for %ums", fd, (unsigned)sent,
+                 (unsigned)total, (unsigned)quiet);
     closeSocket(fd);
 }
 
@@ -312,9 +341,10 @@ void guardViewer() {
     const int fd = viewer;
     if (fd < 0) return;
     const uint32_t now = nowMs();
-    if ((!helloDone && now - connectedAt > HELLO_WAIT_MS) || now - lastRx > IDLE_MS ||
-        (batchActive && now - lastSent > STALL_MS)) {
-        routeos::log('W', "display viewer dropped: nothing from it or nothing getting through");
+    // Only the viewer's own silence frees the display. A socket with no room is backpressure and is handled by the
+    // sender waiting for it, not by turning the viewer away.
+    if ((!helloDone && now - connectedAt > HELLO_WAIT_MS) || now - lastRx > IDLE_MS) {
+        routeos::log('W', "display viewer dropped: nothing heard from it");
         dropViewer(fd);
     }
 }
@@ -412,14 +442,16 @@ esp_err_t handler(httpd_req_t* req) {
         rvdp::put16(rejection + 16, 409);
         memcpy(rejection + 18, BUSY, sizeof(BUSY) - 1);
         routeos::log('W', "display viewer turned away: another viewer is connected");
-        xSemaphoreTake(sendLock, portMAX_DELAY);
-        httpd_ws_frame_t busy_frame = {};
-        busy_frame.type = HTTPD_WS_TYPE_BINARY;
-        busy_frame.payload = rejection;
-        busy_frame.len = sizeof(rejection);
-        const esp_err_t sent = httpd_ws_send_frame_async(server, fd, &busy_frame);
-        xSemaphoreGive(sendLock);
-        routeos::log('W', "rvdp: busy reply to socket %d: %s (closing)", fd, esp_err_to_name(sent));
+        bool sent = false;
+        if (xSemaphoreTake(sendLock, 0) == pdTRUE) {
+            httpd_ws_frame_t busy_frame = {};
+            busy_frame.type = HTTPD_WS_TYPE_BINARY;
+            busy_frame.payload = rejection;
+            busy_frame.len = sizeof(rejection);
+            sent = httpd_ws_send_frame_async(server, fd, &busy_frame) == ESP_OK;
+            xSemaphoreGive(sendLock);
+        }
+        routeos::log('W', "rvdp: busy reply to socket %d: %s (closing)", fd, sent ? "queued" : "not sent");
         // This board's stack drops the queued frame when the socket closes right after it, so the message usually does
         // not reach the viewer - it just sees a closed connection. Closing is still the honest choice: the socket is
         // not the owner, and leaving it open would hold one of only three slots. Viewers that care read "closed before
@@ -469,7 +501,14 @@ esp_err_t handler(httpd_req_t* req) {
         return ESP_OK;
     }
     if (type == rvdp::PING && n == 4) {
-        sendSmall(fd, rvdp::PONG, p, 4);
+        // Try, do not wait: see sendSmallTry. A dropped pong costs the viewer one latency sample; a blocked server task
+        // costs every viewer the whole device.
+        if (!sendSmallTry(fd, rvdp::PONG, p, 4)) {
+            static uint32_t skipped = 0;
+            if ((skipped++ % 20) == 0) {
+                routeos::log('W', "rvdp: pong skipped, the sender held the lock (%u so far)", (unsigned)skipped);
+            }
+        }
         return ESP_OK;
     }
     if (type == rvdp::PONG && n == 4) return ESP_OK;
@@ -511,6 +550,7 @@ esp_err_t handler(httpd_req_t* req) {
 }
 
 void senderTask(void*) {
+    int sendRetries = 0;
     for (;;) {
         // With no viewer there is nothing to do, so block until one arrives instead of polling forever.
         if (viewer.load() < 0) {
@@ -556,10 +596,10 @@ void senderTask(void*) {
             batchFull = all;
             batchId = ++frameId;
             batchActive = true;
+            sendRetries = 0;
         }
         while (batchSent < batchTotal) {
-            const int band = batch[batchSent];
-            const uint16_t y = uint16_t(band) * ROWS;
+            const int band = batch[batchSent];            const uint16_t y = uint16_t(band) * ROWS;
             // Take the run of consecutive dirty bands, up to a group, so one JPEG covers as many of them as possible.
             int group = 1;
             if (peerJpeg) {
@@ -569,23 +609,41 @@ void senderTask(void*) {
             }
             uint16_t rows = uint16_t(group) * ROWS;
             if (y + rows > H) rows = H - y;
-            // A viewer that stops reading must not hold the only send slot: give up on it and free the port.
-            if (nowMs() - lastSent > STALL_MS) {
-                dropViewer(fd);
-                break;
-            }
+            // A viewer that stops reading must not hold the only send slot - but a full socket is not that. The viewer
+            // is pinging, so it is alive; the link is simply slower than the screen changes. Never drop for this.
             // The socket belongs to the server task, which does the write, so a select() here can say "not writable"
             // while the server is draining it. Waiting one tick and trying again is cheap; pushing anyway is what
             // strands a batch half sent.
-            if (!socketWritable(fd)) break;
+            if (!socketWritable(fd)) {
+                const uint32_t waiting = nowMs() - lastSent;
+                if (waiting > BACKPRESSURE_MS && (waiting / 1000) % 30 == 0) {
+                    routeos::log('W', "rvdp: link still full for %us, %u bands waiting (frames are being skipped)",
+                                 (unsigned)(waiting / 1000), (unsigned)pending());
+                }
+                break;
+            }
             int covered = 1;
             if (!sendBands(fd, y, rows, batchId, &covered)) {
+                // The server hands each frame to a bounded queue; a full socket fills that queue, which is backpressure
+                // again and not a reason to end the session. Give the link a few seconds before giving up on it.
+                if (++sendRetries <= 200) {
+                    if (sendRetries == 1) {
+                        routeos::log('W', "rvdp: send queue full, retrying the rectangle (not dropping the viewer)");
+                    }
+                    vTaskDelay(pdMS_TO_TICKS(25));
+                    continue;
+                }
                 dropViewer(fd);
                 break;
             }
+            sendRetries = 0;
             batchSent += covered;
             rectsSent++;
             lastSent = nowMs();
+            // One encoder band is hundreds of milliseconds of solid CPU. Without this the sender can run through a
+            // whole batch without blocking, and on a screen that invalidates continuously it never idles, which starves
+            // the server task that has to read the viewer's pings and clicks.
+            vTaskDelay(1);
         }
         if (batchActive && batchSent >= batchTotal) {
             // The count is rectangles, not bands: a compressed rectangle can cover several bands.
@@ -593,9 +651,9 @@ void senderTask(void*) {
             // leaves a viewer holding a complete frame it is not allowed to display, which is the "screen never
             // arrives" failure - every rectangle was on the wire and the last one, the cheap one, was not.
             bool ended = false;
-            for (int attempt = 0; attempt < 25 && !ended; attempt++) {
+            for (int attempt = 0; attempt < 2000 && !ended; attempt++) {
                 ended = sendEnd(fd, batchId, uint16_t(rectsSent), batchFull);
-                if (!ended) vTaskDelay(pdMS_TO_TICKS(10));
+                if (!ended) vTaskDelay(pdMS_TO_TICKS(25));
             }
             if (!ended) {
                 routeos::log('W', "rvdp: could not send the frame end, dropping the viewer");
@@ -605,6 +663,10 @@ void senderTask(void*) {
             }
             batchActive = false;
             lastSent = nowMs();
+            // Let a burst of small invalidations (a blinking cursor, a typing hand) pile up into the next frame instead
+            // of encoding one band per blink. This is the difference between a screen that costs a whole core to watch
+            // and one that costs a fraction of it.
+            vTaskDelay(pdMS_TO_TICKS(FRAME_GAP_MS));
         }
         guardViewer();
     }
@@ -614,15 +676,40 @@ void senderTask(void*) {
 // waiting and nothing has moved for a while, the viewer is dropped and the port goes back to idle, ready for the next
 // connection instead of staying silent.
 void watchdogTask(void*) {
+    uint32_t lockStuckSince = 0;
     for (;;) {
         vTaskDelay(pdMS_TO_TICKS(1000));
         const int fd = viewer.load();
         if (fd < 0 || !helloDone) continue;
-        const uint32_t stalled = nowMs() - lastSent;
-        if (pending() > 0 && stalled > STALL_MS) {
-            routeos::log('W', "rvdp: stalled for %ums with %u bands waiting, resetting the viewer", (unsigned)stalled,
-                         (unsigned)pending());
+        // If the send lock is held for seconds on end, the sender is wedged inside a write. Nothing can be sent any
+        // more, but the server task itself must stay able to accept and answer: free the display instead of holding
+        // the port with a session that will never paint again.
+        if (xSemaphoreTake(sendLock, 0) == pdTRUE) {
+            xSemaphoreGive(sendLock);
+            lockStuckSince = 0;
+        } else if (lockStuckSince == 0) {
+            lockStuckSince = nowMs();
+        } else if (nowMs() - lockStuckSince > 5000) {
+            routeos::log('W', "rvdp: send lock held for %us, freeing the display",
+                         (unsigned)((nowMs() - lockStuckSince) / 1000));
+            lockStuckSince = 0;
+            hmi::wedges++;
             dropViewer(fd);
+            continue;
+        }
+        // Last line of defence. A viewer is attached and pinging, yet nothing at all has been read from it for five
+        // minutes: the receive path is not running, which is the one failure that leaves the device on the network but
+        // unreachable. A controlled reboot is better than a board that has to be unplugged by hand, which is not
+        // possible when the whole point of the link is that nobody is there.
+        if (nowMs() - lastRx > 300000) {
+            routeos::log('E', "rvdp: no packet from the viewer in %us, rebooting rather than staying silent",
+                         (unsigned)((nowMs() - lastRx) / 1000));
+            esp_restart();
+        }
+        const uint32_t stalled = nowMs() - lastSent;
+        if (pending() > 0 && stalled > BACKPRESSURE_MS && (stalled / 1000) % 60 == 0) {
+            routeos::log('W', "rvdp: %u bands waiting, last write %us ago (waiting for the link, not dropping)",
+                         (unsigned)pending(), (unsigned)(stalled / 1000));
         }
     }
 }
@@ -677,9 +764,10 @@ void begin() {
     config.ctrl_port = 32081;             // the management server on 80 keeps the default
     config.max_open_sockets = 3;
     config.lru_purge_enable = true;
-    // A viewer that dies mid-frame would otherwise sit in a blocking send for the default five seconds per band.
-    // The stall check in senderTask is what finally frees the slot; this only bounds each individual write.
-    config.send_wait_timeout = 5;
+    // Bound each individual write. This is in FreeRTOS ticks, not milliseconds: the previous value of 5 was five
+    // ticks, which on a 100 Hz tick is 50 ms - short enough that a momentarily full send buffer looked like a dead
+    // viewer and dropped the session.
+    config.send_wait_timeout = pdMS_TO_TICKS(3000);
     // httpd closes a socket that has sent nothing for recv_wait_timeout seconds. A viewer that is only watching is
     // idle for minutes at a time, so this must not be the default five.
     config.recv_wait_timeout = 30;

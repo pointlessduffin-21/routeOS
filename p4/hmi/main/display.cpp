@@ -10,6 +10,7 @@
 namespace hmi {
 QueueHandle_t inputs, keys;
 std::atomic<uint32_t> epoch{0}, drops{0}, sentBytes{0}, batches{0}, inputEpoch{0};
+std::atomic<uint32_t> viewerDrops{0}, wedges{0}, sendFails{0};
 std::atomic<bool> inputReady{false}, ready{false}, refresh{false}, overflow{false};
 void createQueues() {
     inputs = xQueueCreate(16, sizeof(rvdp::Input));
